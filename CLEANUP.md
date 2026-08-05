@@ -27,6 +27,15 @@
 - 전역 패키지 설치: 없음
 - 프로젝트 밖에 생성한 파일: 없음
 
+## 외부 GitHub 상태
+
+- private 저장소: `https://github.com/StandardChartered/SearchBook`
+- 기본 브랜치: `main`
+- 프레임워크 의존형 Release: `v1.0.0`
+- Release 자산: `SearchBook-win-x64.zip` (.NET 10 Desktop Runtime x64 필요)
+
+GitHub 쪽 사본까지 제거하려면 저장소 Settings의 Danger Zone에서 private 저장소를 별도로 삭제해야 합니다. 로컬 프로젝트 폴더 삭제만으로 GitHub 저장소나 Release는 삭제되지 않습니다.
+
 빌드 중 사용한 `DOTNET_CLI_HOME`, `NUGET_PACKAGES`, `TEMP`, `TMP`, `APPDATA`, `LOCALAPPDATA`, `DOTNET_SKIP_FIRST_TIME_EXPERIENCE`, `DOTNET_CLI_TELEMETRY_OPTOUT`는 해당 PowerShell 프로세스에만 적용되며 모두 프로젝트 내부를 가리킵니다.
 
 ## 안전한 전체 제거
