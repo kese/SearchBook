@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SearchBook</AssemblyName>
+    <RootNamespace>SearchBook</RootNamespace>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Tests\**\*.cs" />
+    <None Remove="Tests\**\*" />
+    <Content Include="README_사용법.txt" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="input_sample.txt" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

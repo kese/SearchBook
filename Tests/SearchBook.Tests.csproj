@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\Models\BookResult.cs" Link="Models\BookResult.cs" />
+    <Compile Include="..\Models\LookupSettings.cs" Link="Models\LookupSettings.cs" />
+    <Compile Include="..\Services\RegistrationNumberReader.cs" Link="Services\RegistrationNumberReader.cs" />
+    <Compile Include="..\Services\XlsxExporter.cs" Link="Services\XlsxExporter.cs" />
+    <Compile Include="..\Services\LibraryClient.cs" Link="Services\LibraryClient.cs" />
+  </ItemGroup>
+</Project>
