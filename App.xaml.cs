@@ -75,7 +75,7 @@ public partial class App : System.Windows.Application
 
         try
         {
-            var token = Environment.GetEnvironmentVariable("SEARCHBOOK_GITHUB_TOKEN");
+            var token = EnvironmentFile.GetGitHubToken();
             using var updateService = new GitHubUpdateService(token);
             var currentVersion = Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0, 0, 0);
             var result = await updateService.CheckAsync(currentVersion);

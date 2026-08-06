@@ -46,12 +46,27 @@ $PublishDirectory = if ($SelfContained) {
     Join-Path $ProjectRoot 'dist\SearchBook'
 }
 
+$ResolvedDistDirectory = [System.IO.Path]::GetFullPath((Join-Path $ProjectRoot 'dist')) + [System.IO.Path]::DirectorySeparatorChar
+$ResolvedPublishDirectory = [System.IO.Path]::GetFullPath($PublishDirectory)
+if (-not $ResolvedPublishDirectory.StartsWith($ResolvedDistDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to clean publish directory outside dist: $ResolvedPublishDirectory"
+}
+if (Test-Path -LiteralPath $ResolvedPublishDirectory) {
+    Remove-Item -LiteralPath $ResolvedPublishDirectory -Recurse -Force
+}
+
 if ($SelfContained) {
     & $Dotnet publish (Join-Path $ProjectRoot 'SearchBook.csproj') -c Release --no-restore -o $PublishDirectory --nologo -r win-x64 --self-contained true -p:DebugType=None -p:DebugSymbols=false
 } else {
     & $Dotnet publish (Join-Path $ProjectRoot 'SearchBook.csproj') -c Release --no-restore -o $PublishDirectory --nologo -p:DebugType=None -p:DebugSymbols=false
 }
 if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
+
+$SensitivePublishFiles = @(Get-ChildItem -LiteralPath $PublishDirectory -Recurse -Force -File |
+    Where-Object { $_.Name -eq '.env' })
+if ($SensitivePublishFiles.Count -ne 0) {
+    throw "Refusing to package sensitive .env file: $($SensitivePublishFiles[0].FullName)"
+}
 
 New-Item -ItemType Directory -Force -Path (Join-Path $PublishDirectory 'results') | Out-Null
 

@@ -9,7 +9,7 @@
     <AssemblyName>SearchBook</AssemblyName>
     <RootNamespace>SearchBook</RootNamespace>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <ApplicationIcon>Assets\SearchBook.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
@@ -17,6 +17,7 @@
     <Using Remove="System.Windows.Forms" />
     <Compile Remove="Tests\**\*.cs" />
     <None Remove="Tests\**\*" />
+    <None Update=".env" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
     <Content Include="README_사용법.txt" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="input_sample.txt" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="docs\*.xlsx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

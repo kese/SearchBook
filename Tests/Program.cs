@@ -99,6 +99,25 @@ Run("실제 docs Excel 상태 조회", () =>
     Assert(result.BookState == "대출가능", $"예상 대출가능, 실제 {result.BookState}");
 });
 
+Run(".env GitHub 토큰 로딩과 환경변수 우선순위", () =>
+{
+    const string variable = "SEARCHBOOK_TEST_GITHUB_TOKEN";
+    var envPath = Path.Combine(artifacts, "update-token.env");
+    File.WriteAllText(envPath, $"# SearchBook test\n{variable}=from-env-file\n", new UTF8Encoding(false));
+    var original = Environment.GetEnvironmentVariable(variable);
+    try
+    {
+        Environment.SetEnvironmentVariable(variable, null);
+        Assert(EnvironmentFile.GetValue(variable, [envPath]) == "from-env-file", ".env 토큰 로딩 실패");
+        Environment.SetEnvironmentVariable(variable, "from-process");
+        Assert(EnvironmentFile.GetValue(variable, [envPath]) == "from-process", "프로세스 환경변수 우선 적용 실패");
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable(variable, original);
+    }
+});
+
 await RunAsync("GitHub 업데이트 확인/다운로드/SHA-256 검증", async () =>
 {
     var payload = Encoding.UTF8.GetBytes("SearchBook update fixture");
@@ -166,7 +185,7 @@ if (args.Contains("--github-live", StringComparer.OrdinalIgnoreCase))
 {
     await RunAsync("실제 GitHub private 릴리즈 확인/다운로드", async () =>
     {
-        var token = Environment.GetEnvironmentVariable("SEARCHBOOK_GITHUB_TOKEN");
+        var token = EnvironmentFile.GetGitHubToken();
         Assert(!string.IsNullOrWhiteSpace(token), "SEARCHBOOK_GITHUB_TOKEN이 없습니다.");
         using var service = new GitHubUpdateService(token);
         var result = await service.CheckAsync(new Version(0, 0, 0));

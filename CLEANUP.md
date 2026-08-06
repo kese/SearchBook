@@ -23,6 +23,9 @@
 - `results`: 앱 실행 중 생성되는 자동저장 및 최종 결과
 - `updates`: 트레이의 업데이트 확인에서 내려받은 버전별 ZIP과 임시 `.download` 파일(실패 시 임시 파일 자동 삭제)
 - `.env.example`: private GitHub 릴리즈 인증용 환경 변수 이름만 기록한 예시(실제 토큰 없음)
+- `.env`: 현재 PC에서만 사용하는 private GitHub 릴리즈 토큰(평문 로컬 설정, `.gitignore`와 Release ZIP에서 제외)
+- `start-searchbook.cmd`: `.env`를 읽어 해당 SearchBook 프로세스에만 토큰을 전달하는 선택적 로컬 실행기(앱도 트레이 업데이트 확인 시 `.env`를 직접 읽음)
+- `build-release.ps1`: 기존 publish 폴더를 안전하게 초기화하고 `.env`가 발견되면 ZIP 생성을 중단함
 
 ## 실행 상태
 
@@ -39,7 +42,7 @@
 - 기본 브랜치: `main`
 - 프레임워크 의존형 Release: `v1.0.0`
 - Release 자산: `SearchBook-win-x64.zip` (.NET 10 Desktop Runtime x64 필요)
-- 현재 로컬 소스/배포 버전: `1.1.0` (업데이트 확인 기능 포함, 아직 GitHub Release에는 게시하지 않음)
+- 현재 로컬 소스/배포 버전: `1.1.1` (트레이 업데이트 확인 및 `.env` 연동 포함)
 
 GitHub 쪽 사본까지 제거하려면 저장소 Settings의 Danger Zone에서 private 저장소를 별도로 삭제해야 합니다. 로컬 프로젝트 폴더 삭제만으로 GitHub 저장소나 Release는 삭제되지 않습니다.
 
