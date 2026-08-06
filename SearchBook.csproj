@@ -3,16 +3,24 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>SearchBook</AssemblyName>
     <RootNamespace>SearchBook</RootNamespace>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <Version>1.1.0</Version>
+    <ApplicationIcon>Assets\SearchBook.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
     <Compile Remove="Tests\**\*.cs" />
     <None Remove="Tests\**\*" />
     <Content Include="README_사용법.txt" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="input_sample.txt" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="docs\*.xlsx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets\SearchBook.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets\SearchBookTray.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

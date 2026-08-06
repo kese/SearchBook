@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using SearchBook.Models;
 using SearchBook.Services;
@@ -54,6 +56,99 @@ Run("XLSX 쓰기/읽기 왕복", () =>
     Assert(values.SequenceEqual(["EM00510342", "WM00000001"]), "XLSX 왕복 등록번호 불일치");
 });
 
+Run("보조 Excel 번호대/EM·WM 상태 조회", () =>
+{
+    var docs = Path.Combine(artifacts, "local-status-docs");
+    Directory.CreateDirectory(docs);
+    var path = Path.Combine(docs, "180k.xlsx");
+    XlsxExporter.Write(path,
+    [
+        new BookResult { Sequence = 1, RegistrationNumber = "EM00180001", BookState = "대출가능" },
+        new BookResult { Sequence = 2, RegistrationNumber = "WM00180002", BookState = "소재불명" }
+    ]);
+
+    Assert(LocalBookStatusCatalog.GetRangeFileName("EM00180001") == "180k.xlsx", "EM 번호대 파일 계산 실패");
+    Assert(LocalBookStatusCatalog.GetRangeFileName("wm00180002") == "180k.xlsx", "WM 번호대 파일 계산 실패");
+
+    var catalog = new LocalBookStatusCatalog(docs);
+    var em = catalog.Lookup("EM00180001");
+    var wm = catalog.Lookup("wm00180002");
+    var missing = catalog.Lookup("EM00180003");
+    Assert(em.Found && em.BookState == "대출가능", "EM 보조 상태 조회 실패");
+    Assert(wm.Found && wm.BookState == "소재불명", "WM 보조 상태 조회 실패");
+    Assert(!missing.Found, "없는 등록번호가 조회됨");
+
+    var resolved = LookupFallbackResolver.Resolve(
+        "EM00180001",
+        LookupData.NotFound("원격 미확인"),
+        catalog);
+    var unresolved = LookupFallbackResolver.Resolve(
+        "EM00180003",
+        LookupData.NotFound("원격 미확인"),
+        catalog);
+    Assert(resolved.Success && resolved.BookState == "대출가능", "원격 미확인 결과에 보조 상태가 적용되지 않음");
+    Assert(resolved.Message.Contains("180k.xlsx"), "보조 상태 출처가 처리메시지에 없음");
+    Assert(!unresolved.Success && unresolved.Message.Contains("보조 엑셀에도"), "보조 Excel에도 없을 때 미확인 유지 실패");
+});
+
+Run("실제 docs Excel 상태 조회", () =>
+{
+    var catalog = new LocalBookStatusCatalog(Path.Combine(root, "docs"));
+    var result = catalog.Lookup("EM00180001");
+    Assert(result.Found, "docs/180k.xlsx에서 EM00180001을 찾지 못함");
+    Assert(result.BookState == "대출가능", $"예상 대출가능, 실제 {result.BookState}");
+});
+
+await RunAsync("GitHub 업데이트 확인/다운로드/SHA-256 검증", async () =>
+{
+    var payload = Encoding.UTF8.GetBytes("SearchBook update fixture");
+    var digest = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+    var releaseJson = $$"""
+        {
+          "tag_name": "v2.0.0",
+          "html_url": "https://github.com/StandardChartered/SearchBook/releases/tag/v2.0.0",
+          "assets": [
+            {
+              "name": "SearchBook-win-x64.zip",
+              "url": "https://api.github.com/repos/StandardChartered/SearchBook/releases/assets/1",
+              "browser_download_url": "https://github.com/example/framework.zip",
+              "digest": "sha256:{{digest}}",
+              "size": {{payload.Length}}
+            },
+            {
+              "name": "SearchBook-self-contained-win-x64.zip",
+              "url": "https://api.github.com/repos/StandardChartered/SearchBook/releases/assets/2",
+              "browser_download_url": "https://github.com/example/self-contained.zip",
+              "digest": "sha256:{{digest}}",
+              "size": {{payload.Length}}
+            }
+          ]
+        }
+        """;
+    using var service = new GitHubUpdateService(new StubHttpMessageHandler(request =>
+    {
+        if (request.RequestUri?.AbsolutePath.EndsWith("/releases/latest", StringComparison.Ordinal) == true)
+            return TextResponse(HttpStatusCode.OK, releaseJson, "application/json");
+        return ByteResponse(HttpStatusCode.OK, payload, "application/octet-stream");
+    }));
+
+    var result = await service.CheckAsync(new Version(1, 0, 0));
+    Assert(result.Status == UpdateCheckStatus.UpdateAvailable, $"업데이트 판정 실패: {result.Status}");
+    Assert(result.Asset?.Name == "SearchBook-self-contained-win-x64.zip", "self-contained 자산 우선 선택 실패");
+
+    var downloadPath = Path.Combine(artifacts, "github-update", result.Asset!.Name);
+    var savedPath = await service.DownloadAsync(result.Asset, downloadPath);
+    Assert(File.ReadAllBytes(savedPath).SequenceEqual(payload), "다운로드 파일 내용 불일치");
+});
+
+await RunAsync("private GitHub 릴리즈 인증 안내", async () =>
+{
+    using var service = new GitHubUpdateService(new StubHttpMessageHandler(_ =>
+        TextResponse(HttpStatusCode.NotFound, "{}", "application/json")));
+    var result = await service.CheckAsync(new Version(1, 0, 0));
+    Assert(result.Status == UpdateCheckStatus.AuthenticationRequired, $"인증 필요 판정 실패: {result.Status}");
+});
+
 if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
 {
     await RunAsync("실제 도서관 조회", async () =>
@@ -64,6 +159,23 @@ if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
         Assert(result.BookState.Contains("대출"), $"실제 도서상태가 이상함: {result.BookState}");
         Assert(result.Title.Contains("인생의 역사"), $"실제 서명이 이상함: {result.Title}");
         Console.WriteLine($"    상태={result.BookState}, 위치={result.Location}, 서명={result.Title}");
+    });
+}
+
+if (args.Contains("--github-live", StringComparer.OrdinalIgnoreCase))
+{
+    await RunAsync("실제 GitHub private 릴리즈 확인/다운로드", async () =>
+    {
+        var token = Environment.GetEnvironmentVariable("SEARCHBOOK_GITHUB_TOKEN");
+        Assert(!string.IsNullOrWhiteSpace(token), "SEARCHBOOK_GITHUB_TOKEN이 없습니다.");
+        using var service = new GitHubUpdateService(token);
+        var result = await service.CheckAsync(new Version(0, 0, 0));
+        Assert(result.Status == UpdateCheckStatus.UpdateAvailable, $"GitHub 업데이트 판정 실패: {result.Status} / {result.Message}");
+        Assert(result.Asset is not null, "다운로드 가능한 Windows ZIP이 없습니다.");
+        var path = Path.Combine(artifacts, "github-live", result.Asset!.Name);
+        var saved = await service.DownloadAsync(result.Asset, path);
+        Assert(File.Exists(saved), "GitHub 릴리즈 자산이 저장되지 않았습니다.");
+        Console.WriteLine($"    릴리즈={result.TagName}, 자산={result.Asset.Name}");
     });
 }
 
@@ -116,4 +228,22 @@ static string ReadHtml(string path)
 static void Assert(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException(message);
+}
+
+static HttpResponseMessage TextResponse(HttpStatusCode statusCode, string content, string contentType) => new(statusCode)
+{
+    Content = new StringContent(content, Encoding.UTF8, contentType)
+};
+
+static HttpResponseMessage ByteResponse(HttpStatusCode statusCode, byte[] content, string contentType)
+{
+    var response = new HttpResponseMessage(statusCode) { Content = new ByteArrayContent(content) };
+    response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+    return response;
+}
+
+sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        Task.FromResult(responder(request));
 }

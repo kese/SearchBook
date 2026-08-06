@@ -28,7 +28,7 @@ public partial class MainWindow : Window
         DataContext = this;
     }
 
-    private void Window_PreviewDragOver(object sender, DragEventArgs e)
+    private void Window_PreviewDragOver(object sender, System.Windows.DragEventArgs e)
     {
         e.Effects = HasSupportedFile(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
@@ -37,7 +37,7 @@ public partial class MainWindow : Window
             : new SolidColorBrush(Color.FromRgb(185, 200, 232));
     }
 
-    private async void Window_Drop(object sender, DragEventArgs e)
+    private async void Window_Drop(object sender, System.Windows.DragEventArgs e)
     {
         DropZoneBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(185, 200, 232));
         if (!HasSupportedFile(e.Data)) return;
@@ -45,7 +45,7 @@ public partial class MainWindow : Window
         await LoadInputFileAsync(path);
     }
 
-    private static bool HasSupportedFile(IDataObject data)
+    private static bool HasSupportedFile(System.Windows.IDataObject data)
     {
         if (!data.GetDataPresent(DataFormats.FileDrop)) return false;
         var paths = data.GetData(DataFormats.FileDrop) as string[];
@@ -142,6 +142,7 @@ public partial class MainWindow : Window
         var stopwatch = Stopwatch.StartNew();
 
         using var client = new LibraryClient(settings);
+        var localStatusCatalog = new LocalBookStatusCatalog(Path.Combine(AppContext.BaseDirectory, "docs"));
         try
         {
             foreach (var row in Results)
@@ -154,6 +155,7 @@ public partial class MainWindow : Window
                 try
                 {
                     var data = await client.LookupAsync(row.RegistrationNumber, token);
+                    data = LookupFallbackResolver.Resolve(row.RegistrationNumber, data, localStatusCatalog);
                     ApplyLookup(row, data);
                     if (data.Success) success++; else failed++;
                 }
@@ -165,10 +167,12 @@ public partial class MainWindow : Window
                 }
                 catch (Exception ex)
                 {
-                    row.QueryState = "오류";
-                    row.Message = CompactError(ex);
-                    row.CheckedAt = DateTime.Now;
-                    failed++;
+                    var data = LookupFallbackResolver.Resolve(
+                        row.RegistrationNumber,
+                        LookupData.NotFound($"도서관 조회 실패: {CompactError(ex)}"),
+                        localStatusCatalog);
+                    ApplyLookup(row, data);
+                    if (data.Success) success++; else failed++;
                 }
 
                 completed++;

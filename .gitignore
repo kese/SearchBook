@@ -10,6 +10,8 @@ Tests/bin/
 Tests/obj/
 dist/
 results/
+updates/
+.env
 *.writing
 site-*.html
 !site-result-idid.html
