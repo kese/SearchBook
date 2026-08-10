@@ -65,7 +65,8 @@ public sealed partial class LibraryClient : IDisposable
                     title,
                     bibliographicInfo,
                     $"{BaseUrl}/search/DetailView.ax?sid=1&cid={cid}",
-                    "조회 완료");
+                    "조회 완료",
+                    DataSource: "도서관 실시간 조회");
             }
         }
 
@@ -225,7 +226,13 @@ public sealed record LookupData(
     string Title,
     string BibliographicInfo,
     string DetailUrl,
-    string Message)
+    string Message,
+    string Author = "",
+    string Publisher = "",
+    string PublicationYear = "",
+    string Isbn = "",
+    string CatalogLastChanged = "",
+    string DataSource = "")
 {
     public static LookupData NotFound(string message) => new(false, "", "", "", "", "", "", "", message);
 }

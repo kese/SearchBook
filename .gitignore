@@ -4,6 +4,7 @@
 .tmp/
 .appdata/
 .localappdata/
+.github-cli/
 bin/
 obj/
 Tests/bin/

@@ -11,7 +11,8 @@ public static class XlsxExporter
     private static readonly string[] Headers =
     [
         "입력순번", "등록번호", "조회결과", "도서상태", "반납예정일/기한", "소장위치",
-        "청구기호", "서명", "서지정보", "상세URL", "처리메시지", "조회시각"
+        "청구기호", "서명", "저자", "출판사", "출판년", "ISBN", "최종변경일",
+        "서지정보", "상세URL", "정보출처", "처리메시지", "조회시각"
     ];
 
     public static void Write(string path, IReadOnlyList<BookResult> rows)
@@ -71,7 +72,7 @@ public static class XlsxExporter
         writer.WriteEndElement();
 
         writer.WriteStartElement("cols");
-        var widths = new[] { 10d, 18, 12, 15, 18, 20, 22, 42, 36, 46, 34, 21 };
+        var widths = new[] { 10d, 18, 12, 15, 18, 22, 24, 42, 28, 28, 12, 23, 16, 40, 46, 28, 38, 21 };
         for (var i = 0; i < widths.Length; i++)
         {
             writer.WriteStartElement("col");
@@ -100,17 +101,23 @@ public static class XlsxExporter
             var values = new[]
             {
                 row.Sequence.ToString(), row.RegistrationNumber, row.QueryState, row.BookState,
-                row.ReturnDue, row.Location, row.CallNumber, row.Title, row.BibliographicInfo,
-                row.DetailUrl, row.Message, row.CheckedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
+                row.ReturnDue, row.Location, row.CallNumber, row.Title, row.Author, row.Publisher,
+                row.PublicationYear, row.Isbn, row.CatalogLastChanged, row.BibliographicInfo,
+                row.DetailUrl, row.DataSource, row.Message, row.CheckedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
             };
-            for (var c = 0; c < values.Length; c++) WriteCell(writer, rowNumber, c + 1, values[c], 0);
+            for (var c = 0; c < values.Length; c++)
+            {
+                var column = c + 1;
+                var style = column is 2 or 12 or 13 ? 2 : 0;
+                WriteCell(writer, rowNumber, column, values[c], style);
+            }
             writer.WriteEndElement();
         }
         writer.WriteEndElement();
 
         var lastRow = Math.Max(1, rows.Count + 1);
         writer.WriteStartElement("autoFilter");
-        writer.WriteAttributeString("ref", $"A1:L{lastRow}");
+        writer.WriteAttributeString("ref", $"A1:R{lastRow}");
         writer.WriteEndElement();
         writer.WriteEndElement();
         writer.WriteEndDocument();
@@ -180,7 +187,7 @@ public static class XlsxExporter
         """;
     private const string Styles = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="10"/><name val="Malgun Gothic"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Malgun Gothic"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF316BFF"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>
+        <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="10"/><name val="Malgun Gothic"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Malgun Gothic"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF316BFF"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" quotePrefix="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>
         """;
     private const string AppProperties = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>

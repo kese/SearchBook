@@ -8,13 +8,18 @@
 
 - `.tools\dotnet`: 휴대용 .NET 10.0.100 SDK와 런타임
 - `.tools\dotnet-install.ps1`: Microsoft 공식 휴대용 SDK 설치 스크립트
+- `.tools\gh\2.97.0`: GitHub 배포에만 사용하는 공식 GitHub CLI portable ZIP(전역 설치/PATH 변경 없음)
+- `.tools\git\2.55.0.3`: GitHub HTTPS 푸시에만 사용하는 공식 MinGit 2.55.0.3(전역 설치/PATH 변경 없음)
+- `.tools\git\MinGit-2.55.0.3-64-bit.zip`: 공식 MinGit 원본 ZIP(SHA-256 `f48e2d2dc74a24454adc6d8fd0ac25bf9c2386f19cfb06202b9465aaad4f9f05`)
+- `.github-cli`: 이 프로젝트의 GitHub 배포 인증 설정(사용자 프로필 대신 프로젝트 내부에 저장, Git 제외)
 - `.dotnet_cli`, `.packages`, `.tmp`, `.appdata`, `.localappdata`: 프로젝트 전용 CLI/캐시/임시 디렉터리(`.packages`에는 self-contained Windows 런타임 팩 포함)
 - `bin`, `obj`, `Tests\bin`, `Tests\obj`: 빌드 결과
 - `dist\SearchBook`: 사용 가능한 배포본
 - `dist\SearchBook-win-x64.zip`: 복사용 배포 ZIP
 - `dist\SearchBook-self-contained-win-x64`: .NET 런타임을 포함한 일반 PC용 배포본
 - `dist\SearchBook-self-contained-win-x64.zip`: 일반 PC용 self-contained 배포 ZIP
-- `docs\180k.xlsx` ~ `docs\250k.xlsx`: 원격 조회 미확인 시 사용하는 번호대별 보조 도서상태 원본(배포본의 `docs`에도 복사됨)
+- `docs\18-26.xls`: 사용자가 제공한 2026-08-06 전체 도서정보 원본(개발 원본이며 배포 ZIP에는 포함하지 않음)
+- `docs\180k.xlsx` ~ `docs\250k.xlsx`: `18-26.xls`에서 생성한 번호대별 전체 도서정보 카탈로그(배포본의 `docs`에도 복사됨)
 - `Assets\SearchBook-source.png`: 사용자가 제공한 고양이 아이콘 원본의 프로젝트 내 사본
 - `Assets\SearchBook.png`, `Assets\SearchBook.ico`: 투명 배경으로 후처리한 앱 아이콘
 - `Assets\SearchBookTray.png`, `Assets\SearchBookTray.ico`: 작은 크기에 맞춰 얼굴 중심으로 후처리한 알림 영역 아이콘

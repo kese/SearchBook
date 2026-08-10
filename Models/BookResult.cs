@@ -11,8 +11,14 @@ public sealed class BookResult : INotifyPropertyChanged
     private string _location = "";
     private string _callNumber = "";
     private string _title = "";
+    private string _author = "";
+    private string _publisher = "";
+    private string _publicationYear = "";
+    private string _isbn = "";
+    private string _catalogLastChanged = "";
     private string _bibliographicInfo = "";
     private string _detailUrl = "";
+    private string _dataSource = "";
     private string _message = "";
     private DateTime? _checkedAt;
 
@@ -24,8 +30,14 @@ public sealed class BookResult : INotifyPropertyChanged
     public string Location { get => _location; set => Set(ref _location, value); }
     public string CallNumber { get => _callNumber; set => Set(ref _callNumber, value); }
     public string Title { get => _title; set => Set(ref _title, value); }
+    public string Author { get => _author; set => Set(ref _author, value); }
+    public string Publisher { get => _publisher; set => Set(ref _publisher, value); }
+    public string PublicationYear { get => _publicationYear; set => Set(ref _publicationYear, value); }
+    public string Isbn { get => _isbn; set => Set(ref _isbn, value); }
+    public string CatalogLastChanged { get => _catalogLastChanged; set => Set(ref _catalogLastChanged, value); }
     public string BibliographicInfo { get => _bibliographicInfo; set => Set(ref _bibliographicInfo, value); }
     public string DetailUrl { get => _detailUrl; set => Set(ref _detailUrl, value); }
+    public string DataSource { get => _dataSource; set => Set(ref _dataSource, value); }
     public string Message { get => _message; set => Set(ref _message, value); }
     public DateTime? CheckedAt { get => _checkedAt; set => Set(ref _checkedAt, value); }
     public bool IsSuccess => QueryState == "성공";

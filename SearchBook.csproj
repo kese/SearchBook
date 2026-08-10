@@ -9,7 +9,7 @@
     <AssemblyName>SearchBook</AssemblyName>
     <RootNamespace>SearchBook</RootNamespace>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <Version>1.1.1</Version>
+    <Version>1.2.0</Version>
     <ApplicationIcon>Assets\SearchBook.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
