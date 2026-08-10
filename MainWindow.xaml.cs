@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private string? _inputPath;
     private string? _lastResultPath;
     private bool _isRunning;
+    private readonly ProcessingSpeedTracker _speedTracker = new();
 
     public ObservableCollection<BookResult> Results { get; } = [];
 
@@ -28,18 +29,37 @@ public partial class MainWindow : Window
         DataContext = this;
     }
 
+    private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void MaximizeWindow_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        MaximizeWindowButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        MaximizeWindowButton.ToolTip = WindowState == WindowState.Maximized ? "이전 크기" : "최대화";
+    }
+
+    private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        if (MaximizeWindowButton is null) return;
+        MaximizeWindowButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        MaximizeWindowButton.ToolTip = WindowState == WindowState.Maximized ? "이전 크기" : "최대화";
+    }
+
     private void Window_PreviewDragOver(object sender, System.Windows.DragEventArgs e)
     {
         e.Effects = HasSupportedFile(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
         DropZoneBorder.BorderBrush = e.Effects == DragDropEffects.Copy
-            ? new SolidColorBrush(Color.FromRgb(49, 107, 255))
-            : new SolidColorBrush(Color.FromRgb(185, 200, 232));
+            ? new SolidColorBrush(Color.FromRgb(15, 98, 254))
+            : new SolidColorBrush(Color.FromRgb(141, 141, 141));
     }
 
     private async void Window_Drop(object sender, System.Windows.DragEventArgs e)
     {
-        DropZoneBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(185, 200, 232));
+        DropZoneBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(141, 141, 141));
         if (!HasSupportedFile(e.Data)) return;
         var path = ((string[])e.Data.GetData(DataFormats.FileDrop)!)[0];
         await LoadInputFileAsync(path);
@@ -92,10 +112,13 @@ public partial class MainWindow : Window
             SuccessMetricText.Text = "0";
             FailureMetricText.Text = "0";
             RemainingMetricText.Text = "—";
+            SpeedMetricText.Text = "— 건/분";
+            SpeedGraphLine.Points.Clear();
+            TransferStatusText.Text = "조회 대기 중";
             MainProgressBar.Value = 0;
             StartButton.IsEnabled = true;
             ExportButton.IsEnabled = false;
-            OpenResultsButton.IsEnabled = false;
+            OpenCurrentResultButton.IsEnabled = true;
         }
         catch (Exception ex)
         {
@@ -135,6 +158,8 @@ public partial class MainWindow : Window
         _isRunning = true;
         ToggleRunningState(true);
         ResetRowsForRun();
+        _speedTracker.Reset();
+        SpeedGraphLine.Points.Clear();
 
         var success = 0;
         var failed = 0;
@@ -190,20 +215,21 @@ public partial class MainWindow : Window
             await SaveResultsAsync(_lastResultPath);
             CurrentStatusText.Text = $"조회가 완료되었습니다. 성공 {success:N0}건, 미확인/실패 {failed:N0}건";
             FooterStatusText.Text = $"완료 · {_lastResultPath}";
-            MessageBox.Show(this,
-                $"조회가 완료되었습니다.\n\n성공: {success:N0}건\n미확인/실패: {failed:N0}건\n\n결과: {_lastResultPath}",
-                "조회 완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            TransferStatusText.Text = "정리 완료";
+            System.Media.SystemSounds.Asterisk.Play();
         }
         catch (OperationCanceledException)
         {
             await SaveResultsAsync(_lastResultPath);
             CurrentStatusText.Text = $"조회가 중지되었습니다. 완료된 {completed:N0}건까지 저장했습니다.";
             FooterStatusText.Text = $"중지됨 · 중간 결과 보존 · {_lastResultPath}";
+            TransferStatusText.Text = "중간 결과 보존됨";
         }
         catch (Exception ex)
         {
             try { await SaveResultsAsync(_lastResultPath); } catch { }
             CurrentStatusText.Text = "예기치 않은 오류로 중단되었습니다. 처리된 결과는 보존했습니다.";
+            TransferStatusText.Text = "오류 · 결과 보존됨";
             MessageBox.Show(this, ex.Message, "조회 오류", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
@@ -214,7 +240,8 @@ public partial class MainWindow : Window
             _cancellationTokenSource.Dispose();
             _cancellationTokenSource = null;
             ExportButton.IsEnabled = Results.Count > 0;
-            OpenResultsButton.IsEnabled = !string.IsNullOrWhiteSpace(_lastResultPath) && File.Exists(_lastResultPath);
+            OpenCurrentResultButton.IsEnabled = Results.Count > 0;
+            OpenCurrentResultButton.Content = "결과 Excel 열기";
         }
     }
 
@@ -268,6 +295,11 @@ public partial class MainWindow : Window
         FailureMetricText.Text = failed.ToString("N0");
         MainProgressBar.Value = total == 0 ? 0 : completed * 100d / total;
         CurrentStatusText.Text = $"{current} 완료 · 전체 {completed * 100d / total:0.0}%";
+        TransferStatusText.Text = $"{current} → 결과 파일";
+
+        var rate = _speedTracker.AddSample(completed, elapsed);
+        SpeedMetricText.Text = rate <= 0 ? "— 건/분" : $"{rate:N1} 건/분";
+        DrawSpeedGraph(_speedTracker.Samples);
 
         if (completed > 0)
         {
@@ -283,14 +315,47 @@ public partial class MainWindow : Window
         return $"{Math.Max(0, value.Seconds)}초";
     }
 
+    private void DrawSpeedGraph(IReadOnlyList<double> samples)
+    {
+        SpeedGraphLine.Points.Clear();
+        if (samples.Count == 0) return;
+
+        const double width = 200;
+        const double height = 42;
+        const double topPadding = 3;
+        var maximum = Math.Max(1, samples.Max());
+        for (var i = 0; i < samples.Count; i++)
+        {
+            var x = samples.Count == 1 ? 0 : i * width / (samples.Count - 1d);
+            var y = height - samples[i] / maximum * (height - topPadding);
+            SpeedGraphLine.Points.Add(new Point(x, y));
+        }
+    }
+
     private void ToggleRunningState(bool running)
     {
-        StartButton.IsEnabled = !running && Results.Count > 0;
+        StartButton.IsEnabled = Results.Count > 0;
+        StartButton.IsHitTestVisible = !running;
+        StartButton.Focusable = !running;
+        StartIdleContent.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
+        StartRunningContent.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
         CancelButton.IsEnabled = running;
         DelayComboBox.IsEnabled = !running;
         DropZoneBorder.IsEnabled = !running;
         SelectedFilePanel.IsEnabled = !running;
         ExportButton.IsEnabled = !running && Results.Count > 0;
+        OpenCurrentResultButton.IsEnabled = Results.Count > 0;
+        OpenCurrentResultButton.Content = running ? "작업 중 결과 열기" : "현재 결과 열기";
+
+        if (running)
+        {
+            TransferStatusText.Text = "결과 파일로 정리 중";
+            LegacyTransferAnimation.Start();
+        }
+        else
+        {
+            LegacyTransferAnimation.Stop();
+        }
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -306,7 +371,7 @@ public partial class MainWindow : Window
         var snapshot = Results.ToList();
         await Task.Run(() => XlsxExporter.Write(path, snapshot));
         ExportButton.IsEnabled = true;
-        OpenResultsButton.IsEnabled = true;
+        OpenCurrentResultButton.IsEnabled = true;
     }
 
     private async void Export_Click(object sender, RoutedEventArgs e)
@@ -358,11 +423,38 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenResults_Click(object sender, RoutedEventArgs e)
+    private async void OpenCurrentResult_Click(object sender, RoutedEventArgs e)
     {
-        var directory = _lastResultPath is null ? null : Path.GetDirectoryName(_lastResultPath);
-        if (directory is null || !Directory.Exists(directory)) return;
-        Process.Start(new ProcessStartInfo("explorer.exe", directory) { UseShellExecute = true });
+        if (Results.Count == 0) return;
+
+        OpenCurrentResultButton.IsEnabled = false;
+        try
+        {
+            string path;
+            if (!_isRunning && !string.IsNullOrWhiteSpace(_lastResultPath) && File.Exists(_lastResultPath))
+            {
+                path = _lastResultPath;
+            }
+            else
+            {
+                var previewDirectory = Path.Combine(AppContext.BaseDirectory, "results", "previews");
+                var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(_inputPath ?? "도서목록"));
+                path = Path.Combine(previewDirectory, $"{stem}_작업중_{DateTime.Now:yyyyMMdd_HHmmss_fff}.xlsx");
+                var snapshot = Results.ToList();
+                await Task.Run(() => XlsxExporter.Write(path, snapshot));
+            }
+
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            FooterStatusText.Text = $"Excel 열기 · {path}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "결과 열기 실패", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            OpenCurrentResultButton.IsEnabled = Results.Count > 0;
+        }
     }
 
     private static string MakeSafeFileName(string value)

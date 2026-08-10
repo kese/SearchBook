@@ -113,6 +113,18 @@ Run("보조 Excel 번호대/EM·WM 상태 조회", () =>
     Assert(merged.DataSource.Contains("실시간") && merged.DataSource.Contains("로컬"), "병합 결과 출처가 불완전함");
 });
 
+Run("처리 속도 표본과 이동 평균", () =>
+{
+    var tracker = new ProcessingSpeedTracker(capacity: 3, smoothingWindow: 2);
+    Assert(Math.Abs(tracker.AddSample(1, TimeSpan.FromSeconds(2)) - 30) < 0.001, "첫 처리 속도 계산 오류");
+    Assert(Math.Abs(tracker.AddSample(2, TimeSpan.FromSeconds(3)) - 45) < 0.001, "이동 평균 계산 오류");
+    tracker.AddSample(3, TimeSpan.FromSeconds(5));
+    tracker.AddSample(4, TimeSpan.FromSeconds(6));
+    Assert(tracker.Samples.Count == 3, "그래프 표본 용량 제한 오류");
+    tracker.Reset();
+    Assert(tracker.Samples.Count == 0 && tracker.CurrentItemsPerMinute == 0, "속도 추적 초기화 오류");
+});
+
 Run("실제 docs 전체 도서정보 조회", () =>
 {
     var catalog = new LocalBookStatusCatalog(Path.Combine(root, "docs"));

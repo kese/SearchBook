@@ -14,6 +14,7 @@
     <Compile Include="..\Services\XlsxExporter.cs" Link="Services\XlsxExporter.cs" />
     <Compile Include="..\Services\LibraryClient.cs" Link="Services\LibraryClient.cs" />
     <Compile Include="..\Services\LocalBookStatusCatalog.cs" Link="Services\LocalBookStatusCatalog.cs" />
+    <Compile Include="..\Services\ProcessingSpeedTracker.cs" Link="Services\ProcessingSpeedTracker.cs" />
     <Compile Include="..\Services\EnvironmentFile.cs" Link="Services\EnvironmentFile.cs" />
     <Compile Include="..\Services\GitHubUpdateService.cs" Link="Services\GitHubUpdateService.cs" />
   </ItemGroup>
