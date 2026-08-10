@@ -44,13 +44,21 @@ Run("XLSX 쓰기/읽기 왕복", () =>
     var path = Path.Combine(artifacts, "roundtrip.xlsx");
     XlsxExporter.Write(path,
     [
-        new BookResult { Sequence = 1, RegistrationNumber = "EM00510342", QueryState = "성공", BookState = "대출가능", Title = "인생의 역사" },
+        new BookResult { Sequence = 1, RegistrationNumber = "EM00510342", QueryState = "성공", BookState = "대출가능", Title = "인생의 역사", Author = "신형철", Publisher = "난다", PublicationYear = "2022", Isbn = "9791191859379", CatalogLastChanged = "20260806", DataSource = "테스트" },
         new BookResult { Sequence = 2, RegistrationNumber = "WM00000001", QueryState = "미확인", Message = "테스트" }
     ]);
     using (var archive = ZipFile.OpenRead(path))
     {
-        Assert(archive.GetEntry("xl/worksheets/sheet1.xml") is not null, "sheet1.xml 없음");
-        Assert(archive.GetEntry("xl/styles.xml") is not null, "styles.xml 없음");
+        var sheetEntry = archive.GetEntry("xl/worksheets/sheet1.xml");
+        var stylesEntry = archive.GetEntry("xl/styles.xml");
+        Assert(sheetEntry is not null, "sheet1.xml 없음");
+        Assert(stylesEntry is not null, "styles.xml 없음");
+        using var sheetReader = new StreamReader(sheetEntry!.Open(), Encoding.UTF8);
+        using var stylesReader = new StreamReader(stylesEntry!.Open(), Encoding.UTF8);
+        var sheetXml = sheetReader.ReadToEnd();
+        var stylesXml = stylesReader.ReadToEnd();
+        Assert(sheetXml.Contains("r=\"L2\" t=\"inlineStr\" s=\"2\""), "ISBN 셀에 텍스트 스타일이 적용되지 않음");
+        Assert(stylesXml.Contains("numFmtId=\"49\"") && stylesXml.Contains("quotePrefix=\"1\""), "식별자 텍스트 서식 정의가 없음");
     }
     var values = RegistrationNumberReader.Read(path);
     Assert(values.SequenceEqual(["EM00510342", "WM00000001"]), "XLSX 왕복 등록번호 불일치");
@@ -63,8 +71,8 @@ Run("보조 Excel 번호대/EM·WM 상태 조회", () =>
     var path = Path.Combine(docs, "180k.xlsx");
     XlsxExporter.Write(path,
     [
-        new BookResult { Sequence = 1, RegistrationNumber = "EM00180001", BookState = "대출가능" },
-        new BookResult { Sequence = 2, RegistrationNumber = "WM00180002", BookState = "소재불명" }
+        new BookResult { Sequence = 1, RegistrationNumber = "EM00180001", BookState = "대출가능", Location = "중앙도서관 / 보존서고", CallNumber = "811.7 신94ㅇ", Title = "인생의 역사", Author = "신형철", Publisher = "난다", PublicationYear = "2022", Isbn = "9791191859379", CatalogLastChanged = "20260806" },
+        new BookResult { Sequence = 2, RegistrationNumber = "WM00180002", BookState = "소재불명", Title = "WM 테스트 도서", Author = "테스트 저자" }
     ]);
 
     Assert(LocalBookStatusCatalog.GetRangeFileName("EM00180001") == "180k.xlsx", "EM 번호대 파일 계산 실패");
@@ -75,7 +83,9 @@ Run("보조 Excel 번호대/EM·WM 상태 조회", () =>
     var wm = catalog.Lookup("wm00180002");
     var missing = catalog.Lookup("EM00180003");
     Assert(em.Found && em.BookState == "대출가능", "EM 보조 상태 조회 실패");
+    Assert(em.Record?.Title == "인생의 역사" && em.Record.Author == "신형철", "EM 보조 전체정보 조회 실패");
     Assert(wm.Found && wm.BookState == "소재불명", "WM 보조 상태 조회 실패");
+    Assert(wm.Record?.Title == "WM 테스트 도서", "WM 정확 일치 전체정보 조회 실패");
     Assert(!missing.Found, "없는 등록번호가 조회됨");
 
     var resolved = LookupFallbackResolver.Resolve(
@@ -87,16 +97,36 @@ Run("보조 Excel 번호대/EM·WM 상태 조회", () =>
         LookupData.NotFound("원격 미확인"),
         catalog);
     Assert(resolved.Success && resolved.BookState == "대출가능", "원격 미확인 결과에 보조 상태가 적용되지 않음");
+    Assert(resolved.Title == "인생의 역사" && resolved.Author == "신형철", "원격 미확인 결과에 보조 전체정보가 적용되지 않음");
+    Assert(resolved.DataSource == "로컬 전체목록", "로컬 전체목록 출처가 기록되지 않음");
     Assert(resolved.Message.Contains("180k.xlsx"), "보조 상태 출처가 처리메시지에 없음");
-    Assert(!unresolved.Success && unresolved.Message.Contains("보조 엑셀에도"), "보조 Excel에도 없을 때 미확인 유지 실패");
+    Assert(!unresolved.Success && unresolved.Message.Contains("로컬 전체목록에도"), "로컬 전체목록에도 없을 때 미확인 유지 실패");
+
+    var merged = LookupFallbackResolver.Resolve(
+        "EM00180001",
+        new LookupData(true, "대출중", "2026-08-20", "", "", "원격 제목", "", "https://example.invalid", "조회 완료", DataSource: "도서관 실시간 조회"),
+        catalog);
+    Assert(merged.BookState == "대출중", "원격 현재 상태가 로컬 스냅샷보다 우선하지 않음");
+    Assert(merged.ReturnDue == "2026-08-20", "원격 반납기한이 보존되지 않음");
+    Assert(merged.Title == "원격 제목", "원격 서명이 로컬 서명보다 우선하지 않음");
+    Assert(merged.Location == "중앙도서관 / 보존서고" && merged.Author == "신형철", "원격 빈 항목이 로컬 전체정보로 보완되지 않음");
+    Assert(merged.DataSource.Contains("실시간") && merged.DataSource.Contains("로컬"), "병합 결과 출처가 불완전함");
 });
 
-Run("실제 docs Excel 상태 조회", () =>
+Run("실제 docs 전체 도서정보 조회", () =>
 {
     var catalog = new LocalBookStatusCatalog(Path.Combine(root, "docs"));
-    var result = catalog.Lookup("EM00180001");
-    Assert(result.Found, "docs/180k.xlsx에서 EM00180001을 찾지 못함");
-    Assert(result.BookState == "대출가능", $"예상 대출가능, 실제 {result.BookState}");
+    var removed = catalog.Lookup("EM00182943");
+    Assert(removed.Found, "docs/180k.xlsx에서 제적 도서 EM00182943을 찾지 못함");
+    Assert(removed.BookState == "제적", $"예상 제적, 실제 {removed.BookState}");
+    Assert(removed.Record?.Title.Contains("賃貸住宅") == true, "제적 도서 서명이 비어 있거나 다름");
+    Assert(removed.Record?.Author == "박의권", "제적 도서 저자가 비어 있거나 다름");
+    Assert(removed.Record?.CallNumber == "DP 335.8 박67ㅎ c.4", "제적 도서 청구기호가 비어 있거나 다름");
+    Assert(removed.Record?.SnapshotDate == "2026-08-06", "로컬 목록 기준일이 다름");
+
+    var missing = catalog.Lookup("EM00182477");
+    Assert(missing.Found && missing.BookState == "소재불명", "소재불명 도서 조회 실패");
+    Assert(missing.Record?.Title == "태엽감는 새" && missing.Record.Isbn.Contains("8970121269"), "소재불명 도서 전체정보 조회 실패");
 });
 
 Run(".env GitHub 토큰 로딩과 환경변수 우선순위", () =>

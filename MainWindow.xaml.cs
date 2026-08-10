@@ -226,8 +226,14 @@ public partial class MainWindow : Window
         row.Location = data.Location;
         row.CallNumber = data.CallNumber;
         row.Title = data.Title;
+        row.Author = data.Author;
+        row.Publisher = data.Publisher;
+        row.PublicationYear = data.PublicationYear;
+        row.Isbn = data.Isbn;
+        row.CatalogLastChanged = data.CatalogLastChanged;
         row.BibliographicInfo = data.BibliographicInfo;
         row.DetailUrl = data.DetailUrl;
+        row.DataSource = data.DataSource;
         row.Message = data.Message;
         row.CheckedAt = DateTime.Now;
     }
@@ -242,8 +248,14 @@ public partial class MainWindow : Window
             row.Location = "";
             row.CallNumber = "";
             row.Title = "";
+            row.Author = "";
+            row.Publisher = "";
+            row.PublicationYear = "";
+            row.Isbn = "";
+            row.CatalogLastChanged = "";
             row.BibliographicInfo = "";
             row.DetailUrl = "";
+            row.DataSource = "";
             row.Message = "";
             row.CheckedAt = null;
         }

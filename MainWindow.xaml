@@ -204,6 +204,11 @@
                                 <DataGridTextColumn Header="소장위치" Binding="{Binding Location}" Width="130"/>
                                 <DataGridTextColumn Header="청구기호" Binding="{Binding CallNumber}" Width="150"/>
                                 <DataGridTextColumn Header="서명" Binding="{Binding Title}" Width="260"/>
+                                <DataGridTextColumn Header="저자" Binding="{Binding Author}" Width="150"/>
+                                <DataGridTextColumn Header="출판사" Binding="{Binding Publisher}" Width="150"/>
+                                <DataGridTextColumn Header="출판년" Binding="{Binding PublicationYear}" Width="75"/>
+                                <DataGridTextColumn Header="ISBN" Binding="{Binding Isbn}" Width="125"/>
+                                <DataGridTextColumn Header="정보출처" Binding="{Binding DataSource}" Width="190"/>
                                 <DataGridTextColumn Header="처리메시지" Binding="{Binding Message}" Width="220"/>
                             </DataGrid.Columns>
                         </DataGrid>
