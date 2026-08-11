@@ -38,7 +38,7 @@ public partial class MainWindow
         _loadedFromCheckpoint = false;
         SelectedFileNameText.Text = displayName;
         LoadedCountText.Text =
-            $"등록번호 {summary.Numbers.Count:N0}건 · 중복 {summary.DuplicatesRemoved:N0}건 제거 · 값 {summary.ValuesScanned:N0}개 검사";
+            $"{summary.Numbers.Count:N0}건 · 중복 {summary.DuplicatesRemoved:N0}건 · 값 {summary.ValuesScanned:N0}개";
         SelectedFilePanel.Visibility = Visibility.Visible;
         CurrentStatusText.Text = $"{summary.Numbers.Count:N0}건을 불러왔습니다. 조회 시작을 눌러 주세요.";
         FooterStatusText.Text = sourcePath is null
@@ -170,9 +170,10 @@ public partial class MainWindow
         var tag = (ResultFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
         var matchesState = tag switch
         {
-            "retry" => LookupResultClassifier.ShouldRetry(row),
-            "live" => row.QueryState == LookupResultClassifier.Live,
-            "local" => row.QueryState == LookupResultClassifier.LocalSnapshot,
+            "success" => row.QueryState == LookupResultClassifier.Success,
+            "failed" => row.QueryState == LookupResultClassifier.Failed,
+            "pending" => row.QueryState == LookupResultClassifier.Pending,
+            "running" => row.QueryState == LookupResultClassifier.Running,
             _ => true
         };
         if (!matchesState) return false;
@@ -301,6 +302,6 @@ public partial class MainWindow
         ExportButton.IsEnabled = !_isRunning && hasRows;
         OpenCurrentResultButton.IsEnabled = hasRows;
         RetryUnconfirmedButton.IsEnabled = !_isRunning && Results.Any(LookupResultClassifier.ShouldRetry);
-        OpenCurrentResultButton.Content = _isRunning ? "작업 중 결과 열기" : "현재 결과 열기";
+        OpenCurrentResultText.Text = _isRunning ? "작업 중 결과 Excel 열기" : "현재 결과 Excel 열기";
     }
 }

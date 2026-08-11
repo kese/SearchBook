@@ -55,7 +55,7 @@
 - 기본 브랜치: `main`
 - 프레임워크 의존형 Release: `v1.0.0`
 - Release 자산: `SearchBook-win-x64.zip` (.NET 10 Desktop Runtime x64 필요)
-- 현재 로컬 소스/배포 버전: `1.3.0` (안전 종료, LocalAppData 저장, 체크포인트 재개, 검색/필터/선택 재조회, 접근성·진단 개선 포함)
+- 현재 로컬 소스/배포 버전: `1.3.1` (네 가지 조회 상태, 지점 포함 소장위치, 동적 버전 풋터, 결과 검토 가독성 개선 포함)
 
 GitHub 쪽 사본까지 제거하려면 저장소 Settings의 Danger Zone에서 private 저장소를 별도로 삭제해야 합니다. 로컬 프로젝트 폴더 삭제만으로 GitHub 저장소나 Release는 삭제되지 않습니다.
 

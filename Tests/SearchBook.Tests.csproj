@@ -17,6 +17,7 @@
     <Compile Include="..\Services\LibraryClient.cs" Link="Services\LibraryClient.cs" />
     <Compile Include="..\Services\LocalBookStatusCatalog.cs" Link="Services\LocalBookStatusCatalog.cs" />
     <Compile Include="..\Services\LookupResultClassifier.cs" Link="Services\LookupResultClassifier.cs" />
+    <Compile Include="..\Services\LookupRunState.cs" Link="Services\LookupRunState.cs" />
     <Compile Include="..\Services\ProcessingSpeedTracker.cs" Link="Services\ProcessingSpeedTracker.cs" />
     <Compile Include="..\Services\AppDataPaths.cs" Link="Services\AppDataPaths.cs" />
     <Compile Include="..\Services\DiagnosticReportWriter.cs" Link="Services\DiagnosticReportWriter.cs" />

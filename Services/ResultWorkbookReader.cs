@@ -44,8 +44,7 @@ public static class ResultWorkbookReader
                 : results.Count + 1;
             var dataSource = Get(values, headers, "정보출처");
             var queryState = NormalizeQueryState(
-                Get(values, headers, "조회결과", LookupResultClassifier.Pending),
-                dataSource);
+                Get(values, headers, "조회결과", LookupResultClassifier.Pending));
             results.Add(new BookResult
             {
                 Sequence = sequence,
@@ -113,13 +112,15 @@ public static class ResultWorkbookReader
             ? parsed
             : null;
 
-    private static string NormalizeQueryState(string queryState, string dataSource)
-    {
-        if (!queryState.Equals("성공", StringComparison.Ordinal)) return queryState;
-        return dataSource.Contains("실시간", StringComparison.Ordinal)
-            ? LookupResultClassifier.Live
-            : LookupResultClassifier.LocalSnapshot;
-    }
+    private static string NormalizeQueryState(string queryState) =>
+        queryState.Trim() switch
+        {
+            "" or LookupResultClassifier.Pending => LookupResultClassifier.Pending,
+            "성공" or "실시간 확인" or "로컬 스냅샷" => LookupResultClassifier.Success,
+            "실패" or "미확인" or "오류" => LookupResultClassifier.Failed,
+            "조회중" or "조회 중" or "중지됨" => LookupResultClassifier.Pending,
+            _ => LookupResultClassifier.Failed
+        };
 
     private static void RequireHeader(IReadOnlyDictionary<string, int> headers, string name)
     {

@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:app="clr-namespace:SearchBook"
         xmlns:local="clr-namespace:SearchBook.Controls"
         Title="SearchBook · 도서상태 일괄 조회"
         Width="1280" Height="820" MinWidth="1080" MinHeight="700"
@@ -43,6 +44,10 @@
         <Style x:Key="SectionLabel" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#416174"/><Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style x:Key="EllipsisCellText" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
         </Style>
     </Window.Resources>
 
@@ -199,8 +204,8 @@
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="1"/><ColumnDefinition Width="240"/></Grid.ColumnDefinitions>
                                 <UniformGrid Grid.Column="0" Columns="4" Margin="26,0">
                                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="진행" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="ProgressMetricText" Text="0 / 0" Style="{StaticResource MetricValue}"/></StackPanel>
-                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="확인" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="SuccessMetricText" Text="0" Foreground="#24785D" Style="{StaticResource MetricValue}"/></StackPanel>
-                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="미확인" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="FailureMetricText" Text="0" Foreground="#B44545" Style="{StaticResource MetricValue}"/></StackPanel>
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="성공" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="SuccessMetricText" Text="0" Foreground="#24785D" Style="{StaticResource MetricValue}"/></StackPanel>
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="실패" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="FailureMetricText" Text="0" Foreground="#B44545" Style="{StaticResource MetricValue}"/></StackPanel>
                                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="남은 시간" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="RemainingMetricText" Text="—" Style="{StaticResource MetricValue}"/></StackPanel>
                                 </UniformGrid>
                                 <Border Grid.Column="1" Background="#D7E1E7"/>
@@ -241,13 +246,13 @@
                                     </TextBlock>
                                 </Grid>
                                 <ComboBox x:Name="ResultFilterComboBox" Grid.Column="2" Height="30" Margin="6,0,0,0" VerticalContentAlignment="Center" FontSize="10" SelectedIndex="0" AutomationProperties.Name="결과 상태 필터" SelectionChanged="ResultFilterComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="전체 결과" Tag="all"/><ComboBoxItem Content="미확인" Tag="retry"/><ComboBoxItem Content="실시간" Tag="live"/><ComboBoxItem Content="로컬" Tag="local"/>
+                                    <ComboBoxItem Content="전체 결과" Tag="all"/><ComboBoxItem Content="성공" Tag="success"/><ComboBoxItem Content="실패" Tag="failed"/><ComboBoxItem Content="대기" Tag="pending"/><ComboBoxItem Content="조회중" Tag="running"/>
                                 </ComboBox>
-                                <Button x:Name="RetryUnconfirmedButton" Grid.Column="3" Height="30" Margin="6,0,0,0" VerticalAlignment="Center" Padding="9,4" FontSize="10" IsEnabled="False" AutomationProperties.Name="미확인 결과만 재조회 Ctrl+Shift+R" Click="RetryUnconfirmed_Click">
-                                    <AccessText Text="미확인 _재조회"/>
+                                <Button x:Name="RetryUnconfirmedButton" Grid.Column="3" Height="30" Margin="6,0,0,0" VerticalAlignment="Center" Padding="9,4" FontSize="10" IsEnabled="False" AutomationProperties.Name="실패 및 대기 결과 재조회 Ctrl+Shift+R" Click="RetryUnconfirmed_Click">
+                                    <AccessText Text="실패 _재조회"/>
                                 </Button>
                                 <Button x:Name="OpenCurrentResultButton" Grid.Column="4" Height="34" Margin="6,0,0,0" VerticalAlignment="Center" Background="White" Foreground="#176B87" BorderBrush="#8FB4C3" Padding="11,5" FontSize="10" IsEnabled="False" ToolTip="작업 중에는 별도의 안전한 Excel 스냅샷을 만듭니다." Click="OpenCurrentResult_Click">
-                                    <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="12" Margin="0,0,6,0"/><TextBlock Text="현재 결과 Excel 열기"/></StackPanel>
+                                    <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="12" Margin="0,0,6,0"/><TextBlock x:Name="OpenCurrentResultText" Text="현재 결과 Excel 열기"/></StackPanel>
                                 </Button>
                             </Grid>
                             <ProgressBar x:Name="MainProgressBar" Grid.Row="1" Height="3" Minimum="0" Maximum="100" Background="#DCE6EB" Foreground="#2A809D" BorderThickness="0"/>
@@ -255,7 +260,7 @@
                                 <DataGrid.ColumnHeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#DDE8ED"/><Setter Property="Foreground" Value="#344F5F"/><Setter Property="BorderBrush" Value="#BFCED6"/><Setter Property="BorderThickness" Value="0,0,1,1"/><Setter Property="Padding" Value="9,0"/><Setter Property="FontSize" Value="10"/><Setter Property="FontWeight" Value="SemiBold"/></Style></DataGrid.ColumnHeaderStyle>
                                 <DataGrid.CellStyle><Style TargetType="DataGridCell"><Setter Property="Padding" Value="7,0"/><Setter Property="BorderThickness" Value="0"/><Setter Property="VerticalContentAlignment" Value="Center"/><Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#D8EBF2"/><Setter Property="Foreground" Value="#233746"/></Trigger></Style.Triggers></Style></DataGrid.CellStyle>
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="42"/><DataGridTextColumn Header="등록번호" Binding="{Binding RegistrationNumber}" Width="116"/><DataGridTextColumn Header="조회결과" Binding="{Binding QueryState}" Width="88"/><DataGridTextColumn Header="도서상태" Binding="{Binding BookState}" Width="92"/><DataGridTextColumn Header="반납기한" Binding="{Binding ReturnDue}" Width="96"/><DataGridTextColumn Header="소장위치" Binding="{Binding Location}" Width="116"/><DataGridTextColumn Header="청구기호" Binding="{Binding CallNumber}" Width="138"/><DataGridTextColumn Header="서명" Binding="{Binding Title}" Width="245"/><DataGridTextColumn Header="저자" Binding="{Binding Author}" Width="138"/><DataGridTextColumn Header="출판사" Binding="{Binding Publisher}" Width="138"/><DataGridTextColumn Header="출판년" Binding="{Binding PublicationYear}" Width="66"/><DataGridTextColumn Header="ISBN" Binding="{Binding Isbn}" Width="116"/><DataGridTextColumn Header="최종변경일" Binding="{Binding CatalogLastChanged}" Width="92"/><DataGridTextColumn Header="조회시각" Binding="{Binding CheckedAt, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="128"/><DataGridTextColumn Header="정보출처" Binding="{Binding DataSource}" Width="170"/><DataGridTextColumn Header="처리메시지" Binding="{Binding Message}" Width="205"/>
+                                    <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="42"/><DataGridTextColumn Header="등록번호" Binding="{Binding RegistrationNumber}" Width="116"/><DataGridTextColumn Header="조회결과" Binding="{Binding QueryState}" Width="88"/><DataGridTextColumn Header="도서상태" Binding="{Binding BookState}" Width="92"/><DataGridTextColumn Header="반납기한" Binding="{Binding ReturnDue}" Width="96"/><DataGridTextColumn Header="소장위치" Binding="{Binding Location}" Width="116"/><DataGridTextColumn Header="청구기호" Binding="{Binding CallNumber}" Width="138"/><DataGridTextColumn Header="서명" Binding="{Binding Title}" Width="245" ElementStyle="{StaticResource EllipsisCellText}"/><DataGridTextColumn Header="저자" Binding="{Binding Author}" Width="138"/><DataGridTextColumn Header="출판사" Binding="{Binding Publisher}" Width="138"/><DataGridTextColumn Header="출판년" Binding="{Binding PublicationYear}" Width="66"/><DataGridTextColumn Header="ISBN" Binding="{Binding Isbn}" Width="116"/><DataGridTextColumn Header="최종변경일" Binding="{Binding CatalogLastChanged}" Width="92"/><DataGridTextColumn Header="조회시각" Binding="{Binding CheckedAt, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="128"/><DataGridTextColumn Header="정보출처" Binding="{Binding DataSource}" Width="170"/><DataGridTextColumn Header="처리메시지" Binding="{Binding Message}" Width="205"/>
                                     <DataGridTemplateColumn Header="상세" Width="58">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
@@ -280,7 +285,7 @@
             </Grid>
 
             <Border Grid.Row="4" Background="#304E60">
-                <Grid Margin="11,0"><TextBlock x:Name="FooterStatusText" Text="준비됨 · 별도 설치 없이 실행" Foreground="#DBE7ED" FontSize="9" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/><TextBlock Text="WIN-X64" Foreground="#A9BDC8" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid>
+                <Grid Margin="11,0"><TextBlock x:Name="FooterStatusText" Text="준비됨 · 별도 설치 없이 실행" Foreground="#DBE7ED" FontSize="9" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/><TextBlock Text="{x:Static app:App.VersionText}" Foreground="#A9BDC8" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid>
             </Border>
         </Grid>
     </Border>

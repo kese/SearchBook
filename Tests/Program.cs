@@ -28,7 +28,33 @@ Run("소장정보 행 파싱", () =>
     Assert(items.Count == 2, $"예상 2행, 실제 {items.Count}행");
     var item = items.Single(x => x.RegistrationNumber == "EM00510342");
     Assert(item.BookState.Contains("대출"), $"도서상태 파싱 실패: {item.BookState}");
-    Assert(!string.IsNullOrWhiteSpace(item.Location), "소장위치가 비어 있음");
+    Assert(item.Location == "중앙도서관 / 자료실", $"소장위치 형식 불일치: {item.Location}");
+});
+
+Run("지점별 보존서고 소장위치 형식", () =>
+{
+    foreach (var branch in new[] { "중앙도서관", "증평도서관", "의왕도서관" })
+    {
+        var html = $"""
+            <div class="itemBranch">{branch}</div>
+            <tr class="tbRecord1">
+              <td>1</td><td>EM00000001</td><td>보존서고</td>
+              <td>001 테57ㅈ</td><td>대출가능</td><td>-</td>
+            </tr>
+            """;
+        var item = LibraryClient.ParseItems(html).Single();
+        Assert(item.Location == $"{branch} / 보존서고", $"{branch} 소장위치 형식 불일치: {item.Location}");
+    }
+
+    const string prefixedHtml = """
+        <div class="itemBranch">중앙도서관</div>
+        <tr class="tbRecord1">
+          <td>1</td><td>EM00000002</td><td>중앙도서관 / 보존서고</td>
+          <td>001 테57ㅈ</td><td>대출가능</td><td>-</td>
+        </tr>
+        """;
+    var prefixedItem = LibraryClient.ParseItems(prefixedHtml).Single();
+    Assert(prefixedItem.Location == "중앙도서관 / 보존서고", $"지점명 중복 추가: {prefixedItem.Location}");
 });
 
 Run("TXT 등록번호 추출과 중복 제거", () =>
@@ -55,7 +81,7 @@ Run("XLSX 쓰기/읽기 왕복", () =>
     XlsxExporter.Write(path,
     [
         new BookResult { Sequence = 1, RegistrationNumber = "EM00510342", QueryState = "성공", BookState = "대출가능", Title = "인생의 역사", Author = "신형철", Publisher = "난다", PublicationYear = "2022", Isbn = "9791191859379", CatalogLastChanged = "20260806", DataSource = "테스트" },
-        new BookResult { Sequence = 2, RegistrationNumber = "WM00000001", QueryState = "미확인", Message = "테스트" }
+        new BookResult { Sequence = 2, RegistrationNumber = "WM00000001", QueryState = "실패", Message = "테스트" }
     ]);
     using (var archive = ZipFile.OpenRead(path))
     {
@@ -84,7 +110,7 @@ Run("자동저장 결과 체크포인트 복원", () =>
         {
             Sequence = 1,
             RegistrationNumber = "EM00510342",
-            QueryState = "성공",
+            QueryState = "실시간 확인",
             BookState = "대출중",
             ReturnDue = "2026-08-20",
             Location = "중앙도서관",
@@ -98,20 +124,64 @@ Run("자동저장 결과 체크포인트 복원", () =>
         {
             Sequence = 2,
             RegistrationNumber = "WM00000001",
+            QueryState = "로컬 스냅샷",
+            Message = "로컬 복원"
+        },
+        new BookResult
+        {
+            Sequence = 3,
+            RegistrationNumber = "EM00000003",
             QueryState = "미확인",
             Message = "재조회 필요"
+        },
+        new BookResult
+        {
+            Sequence = 4,
+            RegistrationNumber = "EM00000004",
+            QueryState = "오류"
+        },
+        new BookResult
+        {
+            Sequence = 5,
+            RegistrationNumber = "EM00000005",
+            QueryState = "조회 중"
+        },
+        new BookResult
+        {
+            Sequence = 6,
+            RegistrationNumber = "EM00000006",
+            QueryState = "중지됨"
+        },
+        new BookResult
+        {
+            Sequence = 7,
+            RegistrationNumber = "EM00000007",
+            QueryState = "성공 "
+        },
+        new BookResult
+        {
+            Sequence = 8,
+            RegistrationNumber = "EM00000008",
+            QueryState = "임의상태",
+            Message = "알 수 없는 이전 상태"
         }
     ]);
 
     var rows = ResultWorkbookReader.Read(path);
-    Assert(rows.Count == 2, $"체크포인트 행 수 불일치: {rows.Count}");
-    Assert(rows[0].RegistrationNumber == "EM00510342" && rows[0].QueryState == "실시간 확인", "체크포인트 상태 복원 실패");
+    Assert(rows.Count == 8, $"체크포인트 행 수 불일치: {rows.Count}");
+    Assert(rows[0].RegistrationNumber == "EM00510342" && rows[0].QueryState == "성공", "체크포인트 성공 상태 복원 실패");
     Assert(rows[0].ReturnDue == "2026-08-20" && rows[0].Title == "인생의 역사", "체크포인트 상세정보 복원 실패");
     Assert(rows[0].CheckedAt == checkedAt, $"조회시각 복원 실패: {rows[0].CheckedAt}");
-    Assert(rows[1].Message == "재조회 필요", "체크포인트 메시지 복원 실패");
+    Assert(rows[1].QueryState == "성공", "로컬 스냅샷 상태 복원 실패");
+    Assert(rows[2].QueryState == "실패" && rows[2].Message == "재조회 필요", "미확인 상태 복원 실패");
+    Assert(rows[3].QueryState == "실패", "오류 상태 복원 실패");
+    Assert(rows[4].QueryState == "대기", "조회 중 상태 복원 실패");
+    Assert(rows[5].QueryState == "대기", "중지됨 상태 복원 실패");
+    Assert(rows[6].QueryState == "성공", "공백 포함 성공 상태 복원 실패");
+    Assert(rows[7].QueryState == "실패", $"알 수 없는 상태가 네 상태 밖으로 노출됨: {rows[7].QueryState}");
 });
 
-Run("실시간과 로컬 스냅샷 상태 분리", () =>
+Run("조회결과 네 가지 상태 분류", () =>
 {
     var live = new LookupData(
         true, "대출중", "", "", "", "", "", "", "조회 완료",
@@ -120,36 +190,65 @@ Run("실시간과 로컬 스냅샷 상태 분리", () =>
     var local = live with { DataSource = "로컬 전체목록" };
     var missing = LookupData.NotFound("미확인");
 
-    Assert(LookupResultClassifier.GetQueryState(live) == "실시간 확인", "실시간 상태 분류 실패");
-    Assert(LookupResultClassifier.GetQueryState(merged) == "실시간 확인", "실시간+로컬 상태 분류 실패");
-    Assert(LookupResultClassifier.GetQueryState(local) == "로컬 스냅샷", "로컬 상태 분류 실패");
-    Assert(LookupResultClassifier.GetQueryState(missing) == "미확인", "미확인 상태 분류 실패");
+    Assert(LookupResultClassifier.Pending == "대기", "대기 상태 값 불일치");
+    Assert(LookupResultClassifier.Running == "조회중", "조회중 상태 값 불일치");
+    Assert(LookupResultClassifier.GetQueryState(live) == "성공", "실시간 성공 분류 실패");
+    Assert(LookupResultClassifier.GetQueryState(merged) == "성공", "실시간+로컬 성공 분류 실패");
+    Assert(LookupResultClassifier.GetQueryState(local) == "성공", "로컬 성공 분류 실패");
+    Assert(LookupResultClassifier.GetQueryState(missing) == "실패", "실패 상태 분류 실패");
 
     Assert(!LookupResultClassifier.ShouldRetry(new BookResult
     {
         Sequence = 1,
         RegistrationNumber = "EM00510342",
-        QueryState = "실시간 확인"
-    }), "실시간 확인 행이 재조회 대상으로 분류됨");
+        QueryState = LookupResultClassifier.Success
+    }), "성공 행이 재조회 대상으로 분류됨");
     Assert(LookupResultClassifier.ShouldRetry(new BookResult
     {
         Sequence = 2,
         RegistrationNumber = "WM00000001",
-        QueryState = "미확인"
-    }), "미확인 행이 재조회 대상이 아님");
+        QueryState = LookupResultClassifier.Failed
+    }), "실패 행이 재조회 대상이 아님");
 
     Assert(new BookResult
     {
         Sequence = 3,
         RegistrationNumber = "EM00000003",
-        QueryState = LookupResultClassifier.Live
-    }.IsSuccess, "실시간 확인 행 성공 스타일 분류 실패");
-    Assert(new BookResult
+        QueryState = LookupResultClassifier.Success
+    }.IsSuccess, "성공 행 스타일 분류 실패");
+});
+
+Run("재조회 행 준비와 취소 후 재개", () =>
+{
+    var successful = new BookResult
     {
-        Sequence = 4,
-        RegistrationNumber = "EM00000004",
-        QueryState = LookupResultClassifier.LocalSnapshot
-    }.IsSuccess, "로컬 스냅샷 행 성공 스타일 분류 실패");
+        Sequence = 1,
+        RegistrationNumber = "EM00000001",
+        QueryState = LookupResultClassifier.Success,
+        Title = "보존할 성공 행"
+    };
+    var attempted = new BookResult
+    {
+        Sequence = 2,
+        RegistrationNumber = "EM00000002",
+        QueryState = LookupResultClassifier.Failed,
+        Title = "초기화할 실패 행"
+    };
+    var untouched = new BookResult
+    {
+        Sequence = 3,
+        RegistrationNumber = "EM00000003",
+        QueryState = LookupResultClassifier.Failed,
+        Title = "아직 시도하지 않은 행"
+    };
+    var rows = new[] { successful, attempted, untouched };
+
+    Assert(LookupRunState.SelectRows(rows, retryOnly: true).SequenceEqual([attempted, untouched]), "재조회 대상 선택 실패");
+    LookupRunState.PrepareRow(attempted);
+    Assert(string.IsNullOrEmpty(attempted.Title), "시도 행 초기화 실패");
+    Assert(untouched.Title == "아직 시도하지 않은 행", "미시도 행 정보가 지워짐");
+    Assert(LookupRunState.ShouldResumePendingOnly(wasCanceled: true, rows), "취소 후 재개 모드가 유지되지 않음");
+    Assert(!LookupRunState.ShouldResumePendingOnly(wasCanceled: false, rows), "완료 후 재개 모드가 남음");
 });
 
 Run("사용자 데이터 폴더 생성과 오래된 미리보기 정리", () =>
@@ -186,7 +285,7 @@ Run("진단 정보에서 등록번호 제외", () =>
             {
                 Sequence = 1,
                 RegistrationNumber = "EM00510342",
-                QueryState = LookupResultClassifier.Live,
+                QueryState = LookupResultClassifier.Success,
                 Title = "민감 서명",
                 Author = "민감 저자",
                 Location = "민감 위치",

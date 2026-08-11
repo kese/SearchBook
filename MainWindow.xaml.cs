@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -39,6 +38,25 @@ public partial class MainWindow : Window
         DataContext = this;
         _resultsView = CollectionViewSource.GetDefaultView(Results);
         _resultsView.Filter = FilterResult;
+        if (_resultsView is ICollectionViewLiveShaping liveView &&
+            liveView.CanChangeLiveFiltering)
+        {
+            foreach (var propertyName in new[]
+                     {
+                         nameof(BookResult.QueryState),
+                         nameof(BookResult.BookState),
+                         nameof(BookResult.Location),
+                         nameof(BookResult.CallNumber),
+                         nameof(BookResult.Title),
+                         nameof(BookResult.Author),
+                         nameof(BookResult.Publisher),
+                         nameof(BookResult.Isbn),
+                         nameof(BookResult.DataSource),
+                         nameof(BookResult.Message)
+                     })
+                liveView.LiveFilteringProperties.Add(propertyName);
+            liveView.IsLiveFiltering = true;
+        }
         ResultsDataGrid.ItemsSource = _resultsView;
         FooterStatusText.Text = $"준비됨 · 결과 폴더 {_appDataPaths.ResultsDirectory}";
     }
@@ -156,12 +174,10 @@ public partial class MainWindow : Window
     private async Task BeginLookupAsync(bool retryOnly)
     {
         if (_isRunning || Results.Count == 0 || _activeRunTask is { IsCompleted: false }) return;
-        var rows = retryOnly
-            ? Results.Where(LookupResultClassifier.ShouldRetry).ToList()
-            : Results.ToList();
+        var rows = LookupRunState.SelectRows(Results, retryOnly);
         if (rows.Count == 0)
         {
-            CurrentStatusText.Text = "재조회할 미확인 또는 중지된 결과가 없습니다.";
+            CurrentStatusText.Text = "재조회할 실패 또는 대기 결과가 없습니다.";
             return;
         }
 
@@ -190,13 +206,13 @@ public partial class MainWindow : Window
         var token = _cancellationTokenSource.Token;
         _isRunning = true;
         ToggleRunningState(true);
-        ResetRowsForRun(rows);
         _speedTracker.Reset();
         SpeedGraphLine.Points.Clear();
 
         var success = 0;
         var failed = 0;
         var completed = 0;
+        var wasCanceled = false;
         var stopwatch = Stopwatch.StartNew();
 
         using var client = new LibraryClient(settings);
@@ -206,6 +222,7 @@ public partial class MainWindow : Window
             foreach (var row in rows)
             {
                 token.ThrowIfCancellationRequested();
+                LookupRunState.PrepareRow(row);
                 row.QueryState = LookupResultClassifier.Running;
                 row.Message = "도서관 서버 조회 중";
                 CurrentStatusText.Text = $"{row.RegistrationNumber} 조회 중…";
@@ -219,7 +236,7 @@ public partial class MainWindow : Window
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
                 {
-                    row.QueryState = LookupResultClassifier.Canceled;
+                    row.QueryState = LookupResultClassifier.Pending;
                     row.Message = "사용자가 조회를 중지했습니다.";
                     throw;
                 }
@@ -247,13 +264,14 @@ public partial class MainWindow : Window
             }
 
             await SaveResultsAsync(_lastResultPath);
-            CurrentStatusText.Text = $"조회가 완료되었습니다. 확인 {success:N0}건, 미확인 {failed:N0}건";
+            CurrentStatusText.Text = $"조회가 완료되었습니다. 성공 {success:N0}건, 실패 {failed:N0}건";
             FooterStatusText.Text = $"완료 · {_lastResultPath}";
             TransferStatusText.Text = "정리 완료";
             System.Media.SystemSounds.Asterisk.Play();
         }
         catch (OperationCanceledException)
         {
+            wasCanceled = true;
             var saved = await TrySaveResultsAsync(_lastResultPath);
             CurrentStatusText.Text = saved
                 ? $"조회가 중지되었습니다. 완료된 {completed:N0}건까지 저장했습니다."
@@ -276,7 +294,9 @@ public partial class MainWindow : Window
         {
             stopwatch.Stop();
             _isRunning = false;
-            _resumePendingOnly = false;
+            _resumePendingOnly = LookupRunState.ShouldResumePendingOnly(
+                wasCanceled,
+                Results);
             ToggleRunningState(false);
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
@@ -303,29 +323,6 @@ public partial class MainWindow : Window
         row.DataSource = data.DataSource;
         row.Message = data.Message;
         row.CheckedAt = DateTime.Now;
-    }
-
-    private static void ResetRowsForRun(IEnumerable<BookResult> rows)
-    {
-        foreach (var row in rows)
-        {
-            row.QueryState = LookupResultClassifier.Pending;
-            row.BookState = "";
-            row.ReturnDue = "";
-            row.Location = "";
-            row.CallNumber = "";
-            row.Title = "";
-            row.Author = "";
-            row.Publisher = "";
-            row.PublicationYear = "";
-            row.Isbn = "";
-            row.CatalogLastChanged = "";
-            row.BibliographicInfo = "";
-            row.DetailUrl = "";
-            row.DataSource = "";
-            row.Message = "";
-            row.CheckedAt = null;
-        }
     }
 
     private void UpdateProgress(int completed, int total, int success, int failed, TimeSpan elapsed, string current)
@@ -388,7 +385,7 @@ public partial class MainWindow : Window
         ExportButton.IsEnabled = !running && Results.Count > 0;
         OpenCurrentResultButton.IsEnabled = Results.Count > 0;
         RetryUnconfirmedButton.IsEnabled = !running && Results.Any(LookupResultClassifier.ShouldRetry);
-        OpenCurrentResultButton.Content = running ? "작업 중 결과 열기" : "현재 결과 열기";
+        OpenCurrentResultText.Text = running ? "작업 중 결과 Excel 열기" : "현재 결과 Excel 열기";
 
         if (running)
         {

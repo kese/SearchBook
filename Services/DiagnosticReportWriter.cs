@@ -17,9 +17,10 @@ public static class DiagnosticReportWriter
         var path = Path.Combine(
             paths.DiagnosticsDirectory,
             $"SearchBook_진단_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
-        var live = rows.Count(row => row.QueryState == LookupResultClassifier.Live);
-        var local = rows.Count(row => row.QueryState == LookupResultClassifier.LocalSnapshot);
-        var retry = rows.Count(LookupResultClassifier.ShouldRetry);
+        var success = rows.Count(row => row.QueryState == LookupResultClassifier.Success);
+        var failed = rows.Count(row => row.QueryState == LookupResultClassifier.Failed);
+        var pending = rows.Count(row => row.QueryState == LookupResultClassifier.Pending);
+        var running = rows.Count(row => row.QueryState == LookupResultClassifier.Running);
 
         var content = new StringBuilder()
             .AppendLine("SearchBook 진단 정보")
@@ -29,9 +30,10 @@ public static class DiagnosticReportWriter
             .AppendLine($"런타임: {RuntimeInformation.FrameworkDescription}")
             .AppendLine($"입력 표시명: {Path.GetFileName(inputDisplayName)}")
             .AppendLine($"전체 결과: {rows.Count:N0}")
-            .AppendLine($"실시간 확인: {live:N0}")
-            .AppendLine($"로컬 스냅샷: {local:N0}")
-            .AppendLine($"재조회 대상: {retry:N0}")
+            .AppendLine($"성공: {success:N0}")
+            .AppendLine($"실패: {failed:N0}")
+            .AppendLine($"대기: {pending:N0}")
+            .AppendLine($"조회중: {running:N0}")
             .AppendLine($"사용자 데이터 폴더: {paths.RootDirectory}")
             .AppendLine($"생성 시각: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
             .ToString();

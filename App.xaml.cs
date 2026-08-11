@@ -14,6 +14,9 @@ namespace SearchBook;
 
 public partial class App : System.Windows.Application
 {
+    public static string VersionText { get; } =
+        $"v{Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0"}";
+
     private FormsNotifyIcon? _trayIcon;
     private FormsContextMenuStrip? _trayMenu;
     private FormsToolStripMenuItem? _updateItem;

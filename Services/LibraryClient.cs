@@ -101,6 +101,10 @@ public sealed partial class LibraryClient : IDisposable
     public static IReadOnlyList<ItemData> ParseItems(string html)
     {
         var result = new List<ItemData>();
+        var branchNameMatch = BranchNameRegex().Match(html);
+        var branchName = branchNameMatch.Success
+            ? CleanHtml(branchNameMatch.Groups["name"].Value)
+            : "";
         foreach (Match row in RowRegex().Matches(html))
         {
             var cells = CellRegex().Matches(row.Groups[1].Value)
@@ -108,9 +112,14 @@ public sealed partial class LibraryClient : IDisposable
             if (cells.Count < 6) continue;
             var registrationNumber = cells[1].Trim().ToUpperInvariant();
             if (!RegistrationRegex().IsMatch(registrationNumber)) continue;
+            var location = cells.ElementAtOrDefault(2) ?? "";
+            if (!string.IsNullOrWhiteSpace(branchName) &&
+                !location.Equals(branchName, StringComparison.OrdinalIgnoreCase) &&
+                !location.StartsWith($"{branchName} / ", StringComparison.OrdinalIgnoreCase))
+                location = string.IsNullOrWhiteSpace(location) ? branchName : $"{branchName} / {location}";
             result.Add(new ItemData(
                 registrationNumber,
-                cells.ElementAtOrDefault(2) ?? "",
+                location,
                 cells.ElementAtOrDefault(3) ?? "",
                 cells.ElementAtOrDefault(4) ?? "",
                 NormalizeEmpty(cells.ElementAtOrDefault(5) ?? "")));
@@ -198,6 +207,8 @@ public sealed partial class LibraryClient : IDisposable
     private static partial Regex CidRegex();
     [GeneratedRegex("""<tr\b[^>]*class=['"][^'"]*tbRecord[^'"]*['"][^>]*>([\s\S]*?)</tr>""", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex RowRegex();
+    [GeneratedRegex("""<div\b[^>]*class=['"][^'"]*\bitemBranch\b[^'"]*['"][^>]*>(?<name>[\s\S]*?)</div>""", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex BranchNameRegex();
     [GeneratedRegex(@"<td\b[^>]*>([\s\S]*?)</td>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CellRegex();
     [GeneratedRegex(@"^(?:EM|WM)[A-Z0-9-]{2,}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

@@ -40,7 +40,7 @@ public sealed class BookResult : INotifyPropertyChanged
     public string DataSource { get => _dataSource; set => Set(ref _dataSource, value); }
     public string Message { get => _message; set => Set(ref _message, value); }
     public DateTime? CheckedAt { get => _checkedAt; set => Set(ref _checkedAt, value); }
-    public bool IsSuccess => QueryState is "성공" or "실시간 확인" or "로컬 스냅샷";
+    public bool IsSuccess => QueryState == "성공";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -45,7 +45,7 @@ removed, and the results grid owns most of the window.
 - The secondary 42px bar contains file, resume, clipboard, template, export, and
   one compact operational tools menu.
 - Do not add redundant page names, workflow slogans, context strips, or LOCAL pills.
-- Keep the 25px footer for the active path and platform only.
+- Keep the 25px footer for the active path and current app version only.
 
 ## Work surface
 
@@ -55,7 +55,7 @@ removed, and the results grid owns most of the window.
   file-transfer animation; no separate animation panel is shown.
 - The results table fills the remaining area with 31px rows, zebra striping, and
   fixed blue-gray headers.
-- Search, result-source filtering, and retry actions stay in the results header
+- Search, result-state filtering, and retry actions stay in the results header
   so they do not compete with input controls in the left rail.
 - Progress uses a thin teal rule.
 
@@ -63,6 +63,9 @@ removed, and the results grid owns most of the window.
 
 - Teal indicates primary action and live progress; green, amber, and red are
   reserved for semantic state.
+- 조회결과 uses exactly four operational states: `대기`, `조회중`, `성공`, and
+  `실패`. Live-versus-local provenance remains in the separate information-source
+  column.
 - The active result workbook must never be opened while autosave may replace it.
   Create a uniquely named snapshot under `results/previews` and open that copy.
 - The Excel result action keeps visible top and bottom breathing room.
