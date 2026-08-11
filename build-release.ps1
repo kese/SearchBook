@@ -68,8 +68,6 @@ if ($SensitivePublishFiles.Count -ne 0) {
     throw "Refusing to package sensitive .env file: $($SensitivePublishFiles[0].FullName)"
 }
 
-New-Item -ItemType Directory -Force -Path (Join-Path $PublishDirectory 'results') | Out-Null
-
 $ZipPath = if ($SelfContained) {
     Join-Path $ProjectRoot 'dist\SearchBook-self-contained-win-x64.zip'
 } else {

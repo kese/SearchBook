@@ -6,10 +6,12 @@
         <Color x:Key="MutedColor">#667A89</Color>
         <Color x:Key="PrimaryColor">#176B87</Color>
         <Color x:Key="PrimaryHoverColor">#0F5B75</Color>
+        <Color x:Key="FocusColor">#0F62FE</Color>
         <Color x:Key="LineColor">#C9D6DE</Color>
         <SolidColorBrush x:Key="InkBrush" Color="{StaticResource InkColor}"/>
         <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource MutedColor}"/>
         <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}"/>
+        <SolidColorBrush x:Key="FocusBrush" Color="{StaticResource FocusColor}"/>
         <SolidColorBrush x:Key="LineBrush" Color="{StaticResource LineColor}"/>
 
         <Style TargetType="Window">
@@ -41,6 +43,10 @@
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.68"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource FocusBrush}"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderThickness" Value="2"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.42"/>

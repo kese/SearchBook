@@ -8,25 +8,44 @@ namespace SearchBook.Services;
 
 public static partial class RegistrationNumberReader
 {
-    public static IReadOnlyList<string> Read(string path)
+    public static IReadOnlyList<string> Read(string path) => ReadDetailed(path).Numbers;
+
+    public static RegistrationReadResult ReadDetailed(string path)
     {
         if (!File.Exists(path)) throw new FileNotFoundException("입력 파일을 찾을 수 없습니다.", path);
 
         var extension = Path.GetExtension(path).ToLowerInvariant();
         IEnumerable<string> source = extension switch
         {
-            ".txt" or ".csv" or ".tsv" => ReadText(path),
+            ".txt" or ".csv" or ".tsv" => ReadTextFile(path),
             ".xlsx" => ReadXlsx(path),
             ".xls" => throw new NotSupportedException("이전 Excel 형식(.xls)은 지원하지 않습니다. Excel에서 .xlsx로 저장한 뒤 다시 선택해 주세요."),
             _ => throw new NotSupportedException(".xlsx, .txt, .csv 파일만 사용할 수 있습니다.")
         };
 
+        return Extract(source);
+    }
+
+    public static RegistrationReadResult ReadText(string content)
+    {
+        using var reader = new StringReader(content);
+        var values = new List<string>();
+        while (reader.ReadLine() is { } line) values.Add(line);
+        return Extract(values);
+    }
+
+    private static RegistrationReadResult Extract(IEnumerable<string> source)
+    {
         var result = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var valuesScanned = 0;
+        var matchesFound = 0;
         foreach (var value in source)
         {
+            valuesScanned++;
             foreach (Match match in RegistrationRegex().Matches(value.ToUpperInvariant()))
             {
+                matchesFound++;
                 var normalized = match.Value.Trim().ToUpperInvariant();
                 if (seen.Add(normalized)) result.Add(normalized);
             }
@@ -34,10 +53,14 @@ public static partial class RegistrationNumberReader
 
         if (result.Count == 0)
             throw new InvalidDataException("EM 또는 WM으로 시작하는 등록번호를 찾지 못했습니다.");
-        return result;
+        return new RegistrationReadResult(
+            result,
+            valuesScanned,
+            matchesFound,
+            matchesFound - result.Count);
     }
 
-    private static IEnumerable<string> ReadText(string path)
+    private static IEnumerable<string> ReadTextFile(string path)
     {
         using var reader = new StreamReader(path, DetectTextEncoding(path), detectEncodingFromByteOrderMarks: true);
         while (reader.ReadLine() is { } line) yield return line;
@@ -60,13 +83,14 @@ public static partial class RegistrationNumberReader
 
     private static IEnumerable<string> ReadXlsx(string path)
     {
+        XlsxSafety.ValidateFile(path);
         using var archive = ZipFile.OpenRead(path);
+        XlsxSafety.ValidateArchive(archive);
         var sharedStrings = ReadSharedStrings(archive);
         var sheetEntry = FindFirstWorksheet(archive)
             ?? throw new InvalidDataException("Excel 파일에서 첫 번째 워크시트를 찾을 수 없습니다.");
 
-        using var stream = sheetEntry.Open();
-        var document = XDocument.Load(stream);
+        var document = XlsxSafety.LoadXml(sheetEntry);
         foreach (var cell in document.Descendants().Where(x => x.Name.LocalName == "c"))
         {
             var type = (string?)cell.Attribute("t");
@@ -88,8 +112,7 @@ public static partial class RegistrationNumberReader
     {
         var entry = archive.GetEntry("xl/sharedStrings.xml");
         if (entry is null) return [];
-        using var stream = entry.Open();
-        var document = XDocument.Load(stream);
+        var document = XlsxSafety.LoadXml(entry);
         return document.Descendants().Where(x => x.Name.LocalName == "si")
             .Select(si => string.Concat(si.Descendants().Where(x => x.Name.LocalName == "t").Select(x => x.Value)))
             .ToList();
@@ -102,14 +125,12 @@ public static partial class RegistrationNumberReader
         if (workbookEntry is null || relationshipsEntry is null)
             return archive.GetEntry("xl/worksheets/sheet1.xml");
 
-        using var workbookStream = workbookEntry.Open();
-        var workbook = XDocument.Load(workbookStream);
+        var workbook = XlsxSafety.LoadXml(workbookEntry);
         var firstSheet = workbook.Descendants().FirstOrDefault(x => x.Name.LocalName == "sheet");
         var relationId = firstSheet?.Attributes().FirstOrDefault(x => x.Name.LocalName == "id")?.Value;
         if (string.IsNullOrWhiteSpace(relationId)) return archive.GetEntry("xl/worksheets/sheet1.xml");
 
-        using var relationshipsStream = relationshipsEntry.Open();
-        var relationships = XDocument.Load(relationshipsStream);
+        var relationships = XlsxSafety.LoadXml(relationshipsEntry);
         var target = relationships.Descendants().FirstOrDefault(x =>
             x.Name.LocalName == "Relationship" && (string?)x.Attribute("Id") == relationId)?.Attribute("Target")?.Value;
         if (string.IsNullOrWhiteSpace(target)) return archive.GetEntry("xl/worksheets/sheet1.xml");
@@ -123,3 +144,9 @@ public static partial class RegistrationNumberReader
     [GeneratedRegex(@"(?<![A-Z0-9])(?:EM|WM)[A-Z0-9-]{2,}(?![A-Z0-9])", RegexOptions.CultureInvariant)]
     private static partial Regex RegistrationRegex();
 }
+
+public sealed record RegistrationReadResult(
+    IReadOnlyList<string> Numbers,
+    int ValuesScanned,
+    int MatchesFound,
+    int DuplicatesRemoved);

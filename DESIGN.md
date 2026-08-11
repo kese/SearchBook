@@ -22,6 +22,7 @@ removed, and the results grid owns most of the window.
 - Ink: `#233746`
 - Muted ink: `#667A89`
 - Primary: `#176B87`
+- Keyboard focus: `#0F62FE`
 - Title chrome: `#234A63`
 - Success: `#24785D`
 - Warning surface: `#FFF8E5`
@@ -41,7 +42,8 @@ removed, and the results grid owns most of the window.
 
 - Keep the custom 42px title bar and functional minimize, maximize/restore, close,
   dragging, and resize borders. Do not restore the default Windows title bar.
-- The secondary 42px bar contains file/template/export actions only.
+- The secondary 42px bar contains file, resume, clipboard, template, export, and
+  one compact operational tools menu.
 - Do not add redundant page names, workflow slogans, context strips, or LOCAL pills.
 - Keep the 25px footer for the active path and platform only.
 
@@ -53,6 +55,8 @@ removed, and the results grid owns most of the window.
   file-transfer animation; no separate animation panel is shown.
 - The results table fills the remaining area with 31px rows, zebra striping, and
   fixed blue-gray headers.
+- Search, result-source filtering, and retry actions stay in the results header
+  so they do not compete with input controls in the left rail.
 - Progress uses a thin teal rule.
 
 ## Interaction rules
@@ -63,6 +67,8 @@ removed, and the results grid owns most of the window.
   Create a uniquely named snapshot under `results/previews` and open that copy.
 - The Excel result action keeps visible top and bottom breathing room.
 - Query completion must remain non-modal.
+- Every command remains keyboard reachable, and live status text announces
+  meaningful state changes without announcing every progress tick.
 
 ## Avoid
 

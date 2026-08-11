@@ -24,7 +24,7 @@ public sealed class GitHubUpdateService : IDisposable
     {
         _hasToken = !string.IsNullOrWhiteSpace(token);
         _httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(60) };
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("SearchBook-Updater/1.2.1");
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("SearchBook-Updater/1.3.0");
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         _httpClient.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
         if (_hasToken)

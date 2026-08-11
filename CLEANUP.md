@@ -28,9 +28,10 @@
 - `TestArtifacts`: 입력/XLSX/GUI 검증 자료
 - `input_sample_50.txt`: 로컬 전체 도서정보에서 추린 서로 다른 등록번호 50개의 장시간 조회·애니메이션 확인용 예제
 - `site-*.html`, `site-*.js`: 공개 도서관 페이지 구조 검증용 응답(쿠키 파일은 검증 후 삭제함)
-- `results`: 앱 실행 중 생성되는 자동저장 및 최종 결과
-- `results\previews`: 조회 중 `작업 중 결과 열기`를 누를 때 생성되는 잠금 충돌 방지용 Excel 스냅샷
-- `updates`: 트레이의 업데이트 확인에서 내려받은 버전별 ZIP과 임시 `.download` 파일(실패 시 임시 파일 자동 삭제)
+- `%LocalAppData%\SearchBook\results`: 앱 실행 중 생성되는 자동저장 및 최종 결과
+- `%LocalAppData%\SearchBook\results\previews`: 조회 중 `작업 중 결과 열기`를 누를 때 생성되는 잠금 충돌 방지용 Excel 스냅샷(7일 후 정리)
+- `%LocalAppData%\SearchBook\updates`: 앱 또는 트레이의 업데이트 확인에서 내려받은 버전별 ZIP과 임시 `.download` 파일(실패 시 임시 파일 자동 삭제)
+- `%LocalAppData%\SearchBook\diagnostics`: 등록번호와 서지정보를 제외한 사용자가 직접 저장한 진단 보고서
 - `.env.example`: private GitHub 릴리즈 인증용 환경 변수 이름만 기록한 예시(실제 토큰 없음)
 - `.env`: 현재 PC에서만 사용하는 private GitHub 릴리즈 토큰(평문 로컬 설정, `.gitignore`와 Release ZIP에서 제외)
 - `start-searchbook.cmd`: `.env`를 읽어 해당 SearchBook 프로세스에만 토큰을 전달하는 선택적 로컬 실행기(앱도 트레이 업데이트 확인 시 `.env`를 직접 읽음)
@@ -54,7 +55,7 @@
 - 기본 브랜치: `main`
 - 프레임워크 의존형 Release: `v1.0.0`
 - Release 자산: `SearchBook-win-x64.zip` (.NET 10 Desktop Runtime x64 필요)
-- 현재 로컬 소스/배포 버전: `1.2.1` (EMR UI, 조회 진행 정보, 안전한 Excel 스냅샷, Windows 기본 아이콘 전송 모션 포함)
+- 현재 로컬 소스/배포 버전: `1.3.0` (안전 종료, LocalAppData 저장, 체크포인트 재개, 검색/필터/선택 재조회, 접근성·진단 개선 포함)
 
 GitHub 쪽 사본까지 제거하려면 저장소 Settings의 Danger Zone에서 private 저장소를 별도로 삭제해야 합니다. 로컬 프로젝트 폴더 삭제만으로 GitHub 저장소나 Release는 삭제되지 않습니다.
 
@@ -63,8 +64,9 @@ GitHub 쪽 사본까지 제거하려면 저장소 Settings의 Danger Zone에서 
 ## 안전한 전체 제거
 
 1. 작업 관리자에서 `SearchBook.exe`가 실행 중이면 정상 종료합니다.
-2. 보존할 `results\*.xlsx` 파일을 다른 위치로 복사합니다.
+2. 보존할 `%LocalAppData%\SearchBook\results\*.xlsx` 파일을 다른 위치로 복사합니다.
 3. 정확한 대상이 `C:\WORK\SearchBook`인지 확인합니다.
 4. 프로젝트 폴더 전체를 삭제합니다.
+5. 결과와 업데이트까지 제거하려면 `%LocalAppData%\SearchBook` 폴더도 별도로 삭제합니다.
 
-프로젝트 폴더 삭제만으로 작업 파일과 휴대용 SDK/캐시가 모두 제거됩니다. 기존 사용자 프로그램이나 데이터는 제거하지 마세요.
+프로젝트 폴더 삭제만으로 소스와 휴대용 SDK/캐시가 제거됩니다. 사용자 결과는 `%LocalAppData%\SearchBook`에 남으므로 보존 여부를 확인한 뒤 별도로 처리하세요.

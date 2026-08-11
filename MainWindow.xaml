@@ -7,7 +7,9 @@
         Width="1280" Height="820" MinWidth="1080" MinHeight="700"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
         Icon="Assets/SearchBook.ico" Background="#E8EFF3" AllowDrop="True"
-        PreviewDragOver="Window_PreviewDragOver" Drop="Window_Drop">
+        PreviewDragOver="Window_PreviewDragOver" Drop="Window_Drop"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        AutomationProperties.Name="SearchBook 도서상태 일괄 조회">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="42" ResizeBorderThickness="6"
                             GlassFrameThickness="0" CornerRadius="0"
@@ -66,9 +68,9 @@
                         <TextBlock Text="도서상태 일괄 조회" Foreground="#DDE9EF" FontSize="12" VerticalAlignment="Center"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <Button Style="{StaticResource WindowControlButton}" Content="&#xE921;" ToolTip="최소화" Click="MinimizeWindow_Click"/>
-                        <Button x:Name="MaximizeWindowButton" Style="{StaticResource WindowControlButton}" Content="&#xE922;" ToolTip="최대화" Click="MaximizeWindow_Click"/>
-                        <Button Style="{StaticResource WindowControlButton}" Content="&#xE8BB;" ToolTip="닫기" Click="CloseWindow_Click"/>
+                        <Button Style="{StaticResource WindowControlButton}" Content="&#xE921;" ToolTip="최소화" AutomationProperties.Name="최소화" Click="MinimizeWindow_Click"/>
+                        <Button x:Name="MaximizeWindowButton" Style="{StaticResource WindowControlButton}" Content="&#xE922;" ToolTip="최대화" AutomationProperties.Name="최대화 또는 이전 크기" Click="MaximizeWindow_Click"/>
+                        <Button Style="{StaticResource WindowControlButton}" Content="&#xE8BB;" ToolTip="닫기" AutomationProperties.Name="닫기" Click="CloseWindow_Click"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -77,14 +79,31 @@
                 <Grid Margin="14,0">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Style="{StaticResource ToolbarButton}" Click="ChooseFile_Click">
-                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,7,0"/><TextBlock Text="파일 가져오기"/></StackPanel>
+                        <Button x:Name="ChooseFileButton" Style="{StaticResource ToolbarButton}" AutomationProperties.Name="파일 가져오기 Ctrl+O" Click="ChooseFile_Click">
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,7,0"/><AccessText Text="_파일 가져오기"/></StackPanel>
                         </Button>
-                        <Button Style="{StaticResource ToolbarButton}" Click="CreateTemplate_Click">
-                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,7,0"/><TextBlock Text="입력 서식"/></StackPanel>
+                        <Button x:Name="PasteInputButton" Style="{StaticResource ToolbarButton}" AutomationProperties.Name="클립보드 붙여넣기 Ctrl+Shift+V" Click="PasteInput_Click">
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE77F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,7,0"/><AccessText Text="_붙여넣기"/></StackPanel>
+                        </Button>
+                        <Button x:Name="ResumeButton" Style="{StaticResource ToolbarButton}" AutomationProperties.Name="작업 재개 Ctrl+Shift+O" Click="Resume_Click">
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,7,0"/><AccessText Text="_작업 재개"/></StackPanel>
+                        </Button>
+                        <Button x:Name="TemplateButton" Style="{StaticResource ToolbarButton}" Click="CreateTemplate_Click">
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,7,0"/><AccessText Text="입력 _서식"/></StackPanel>
                         </Button>
                         <Button x:Name="ExportButton" Style="{StaticResource ToolbarButton}" Background="#176B87" BorderBrush="#176B87" Foreground="White" IsEnabled="False" Click="Export_Click">
-                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,7,0"/><TextBlock Text="결과 저장"/></StackPanel>
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,7,0"/><AccessText Text="_결과 저장"/></StackPanel>
+                        </Button>
+                        <Button x:Name="ToolsButton" Style="{StaticResource ToolbarButton}" AutomationProperties.Name="도구 메뉴" Click="Tools_Click">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="결과 폴더 열기" Click="OpenResultsFolder_Click"/>
+                                    <MenuItem Header="진단 정보 저장" Click="ExportDiagnostics_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="업데이트 확인" Click="CheckForUpdates_Click"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="14" Margin="0,0,7,0"/><AccessText Text="_도구"/></StackPanel>
                         </Button>
                     </StackPanel>
                 </Grid>
@@ -103,17 +122,17 @@
                                 </Border>
                                 <StackPanel Margin="14">
                                     <TextBlock Text="지원 형식  XLSX · TXT · CSV · TSV" Style="{StaticResource SectionLabel}" Margin="0,0,0,8"/>
-                                    <Border x:Name="DropZoneBorder" Height="96" BorderThickness="1" BorderBrush="#98AFBC" Background="#F7FAFB" CornerRadius="4" Cursor="Hand" MouseLeftButtonUp="DropZone_Click">
+                                    <Button x:Name="DropZoneButton" Height="96" Padding="0" BorderThickness="1" BorderBrush="#98AFBC" Background="#F7FAFB" HorizontalContentAlignment="Stretch" AutomationProperties.Name="등록번호 파일 선택" Click="DropZone_Click">
                                         <Grid>
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="58"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                             <Border Width="36" Height="36" CornerRadius="18" Background="#DDEDF3" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="17" Foreground="#176B87" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="2,0,12,0">
-                                                <TextBlock Text="파일 놓기 또는 선택" FontSize="12" FontWeight="SemiBold"/><TextBlock Text="첫 열에서 등록번호를 읽습니다" Foreground="#718592" FontSize="10" Margin="0,4,0,0"/>
+                                                <TextBlock Text="파일 놓기 또는 선택" FontSize="12" FontWeight="SemiBold"/><TextBlock Text="파일 전체에서 등록번호를 찾습니다" Foreground="#718592" FontSize="10" Margin="0,4,0,0"/>
                                             </StackPanel>
                                         </Grid>
-                                    </Border>
+                                    </Button>
                                     <Border x:Name="SelectedFilePanel" Background="#E8F3F6" BorderBrush="#9FC2D0" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,9,0,0" Visibility="Collapsed">
                                         <Grid>
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -149,7 +168,7 @@
                                     </Border>
                                     <Grid Margin="0,12,0,0">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="6"/><ColumnDefinition Width="62"/></Grid.ColumnDefinitions>
-                                        <Button x:Name="StartButton" Height="46" Padding="3" Background="#176B87" BorderBrush="#176B87" Foreground="White" IsEnabled="False" Click="Start_Click">
+                                        <Button x:Name="StartButton" Height="46" Padding="3" Background="#176B87" BorderBrush="#176B87" Foreground="White" IsEnabled="False" AutomationProperties.Name="조회 시작" Click="Start_Click">
                                             <Grid Height="32">
                                                 <StackPanel x:Name="StartIdleContent" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                     <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
@@ -160,7 +179,7 @@
                                                 </Grid>
                                             </Grid>
                                         </Button>
-                                        <Button x:Name="CancelButton" Grid.Column="2" Content="중지" Background="#FDF4F4" BorderBrush="#CA8B8B" Foreground="#A12626" IsEnabled="False" Click="Cancel_Click"/>
+                                        <Button x:Name="CancelButton" Grid.Column="2" Content="중지" Background="#FDF4F4" BorderBrush="#CA8B8B" Foreground="#A12626" IsEnabled="False" AutomationProperties.Name="조회 중지 Esc" Click="Cancel_Click"/>
                                     </Grid>
                                 </StackPanel>
                             </StackPanel>
@@ -174,13 +193,13 @@
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="34"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                             <Border Background="#EDF4F7" BorderBrush="#C9D6DE" BorderThickness="0,0,0,1" CornerRadius="6,6,0,0">
-                                <Grid Margin="12,0"><TextBlock Text="작업 진행 요약" FontSize="11" FontWeight="SemiBold" Foreground="#36586B" VerticalAlignment="Center"/><TextBlock x:Name="TransferStatusText" Text="조회 대기 중" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="10" Foreground="#667A89" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/></Grid>
+                                <Grid Margin="12,0"><TextBlock Text="작업 진행 요약" FontSize="11" FontWeight="SemiBold" Foreground="#36586B" VerticalAlignment="Center"/><TextBlock x:Name="TransferStatusText" Text="조회 대기 중" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="10" Foreground="#667A89" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"/></Grid>
                             </Border>
                             <Grid Grid.Row="1">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="1"/><ColumnDefinition Width="240"/></Grid.ColumnDefinitions>
                                 <UniformGrid Grid.Column="0" Columns="4" Margin="26,0">
                                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="진행" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="ProgressMetricText" Text="0 / 0" Style="{StaticResource MetricValue}"/></StackPanel>
-                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="성공" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="SuccessMetricText" Text="0" Foreground="#24785D" Style="{StaticResource MetricValue}"/></StackPanel>
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="확인" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="SuccessMetricText" Text="0" Foreground="#24785D" Style="{StaticResource MetricValue}"/></StackPanel>
                                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="미확인" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="FailureMetricText" Text="0" Foreground="#B44545" Style="{StaticResource MetricValue}"/></StackPanel>
                                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="남은 시간" Style="{StaticResource MetricLabel}"/><TextBlock x:Name="RemainingMetricText" Text="—" Style="{StaticResource MetricValue}"/></StackPanel>
                                 </UniformGrid>
@@ -198,20 +217,61 @@
 
                     <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="0">
                         <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="50"/><RowDefinition Height="3"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="54"/><RowDefinition Height="3"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                             <Grid Margin="14,0">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center"><TextBlock Text="조회 결과 기록" FontSize="14" FontWeight="SemiBold"/><TextBlock x:Name="CurrentStatusText" Text="파일을 불러오면 결과 레코드가 표시됩니다." Foreground="#667A89" FontSize="10" Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/></StackPanel>
-                                <Button x:Name="OpenCurrentResultButton" Grid.Column="1" Height="34" Margin="0,8" VerticalAlignment="Center" Background="White" Foreground="#176B87" BorderBrush="#8FB4C3" Padding="11,5" FontSize="10" IsEnabled="False" ToolTip="작업 중에는 별도의 안전한 Excel 스냅샷을 만듭니다." Click="OpenCurrentResult_Click">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="154"/><ColumnDefinition Width="104"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center"><TextBlock Text="조회 결과 기록" FontSize="14" FontWeight="SemiBold"/><TextBlock x:Name="CurrentStatusText" Text="파일을 불러오면 결과 레코드가 표시됩니다." Foreground="#667A89" FontSize="10" Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"/></StackPanel>
+                                <Grid Grid.Column="1" Height="30" Margin="8,0,0,0">
+                                    <TextBox x:Name="SearchTextBox" VerticalContentAlignment="Center" Padding="8,3" FontSize="10" ToolTip="등록번호, 서명, 저자, 상태 검색" AutomationProperties.Name="결과 검색" TextChanged="SearchTextBox_TextChanged"/>
+                                    <TextBlock Text="결과 검색" Margin="9,0,0,0" VerticalAlignment="Center" Foreground="#899AA6" FontSize="10" IsHitTestVisible="False">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding Text, ElementName=SearchTextBox}" Value=""/>
+                                                            <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=SearchTextBox}" Value="False"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                                <ComboBox x:Name="ResultFilterComboBox" Grid.Column="2" Height="30" Margin="6,0,0,0" VerticalContentAlignment="Center" FontSize="10" SelectedIndex="0" AutomationProperties.Name="결과 상태 필터" SelectionChanged="ResultFilterComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="전체 결과" Tag="all"/><ComboBoxItem Content="미확인" Tag="retry"/><ComboBoxItem Content="실시간" Tag="live"/><ComboBoxItem Content="로컬" Tag="local"/>
+                                </ComboBox>
+                                <Button x:Name="RetryUnconfirmedButton" Grid.Column="3" Height="30" Margin="6,0,0,0" VerticalAlignment="Center" Padding="9,4" FontSize="10" IsEnabled="False" AutomationProperties.Name="미확인 결과만 재조회 Ctrl+Shift+R" Click="RetryUnconfirmed_Click">
+                                    <AccessText Text="미확인 _재조회"/>
+                                </Button>
+                                <Button x:Name="OpenCurrentResultButton" Grid.Column="4" Height="34" Margin="6,0,0,0" VerticalAlignment="Center" Background="White" Foreground="#176B87" BorderBrush="#8FB4C3" Padding="11,5" FontSize="10" IsEnabled="False" ToolTip="작업 중에는 별도의 안전한 Excel 스냅샷을 만듭니다." Click="OpenCurrentResult_Click">
                                     <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="12" Margin="0,0,6,0"/><TextBlock Text="현재 결과 Excel 열기"/></StackPanel>
                                 </Button>
                             </Grid>
                             <ProgressBar x:Name="MainProgressBar" Grid.Row="1" Height="3" Minimum="0" Maximum="100" Background="#DCE6EB" Foreground="#2A809D" BorderThickness="0"/>
-                            <DataGrid x:Name="ResultsDataGrid" Grid.Row="2" ItemsSource="{Binding Results}" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0" RowHeaderWidth="0" Background="White" AlternatingRowBackground="#F5F8FA" HorizontalGridLinesBrush="#D9E3E8" VerticalGridLinesBrush="Transparent" ColumnHeaderHeight="31" RowHeight="31" FontSize="11" EnableRowVirtualization="True" EnableColumnVirtualization="True">
+                            <DataGrid x:Name="ResultsDataGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0" RowHeaderWidth="0" Background="White" AlternatingRowBackground="#F5F8FA" HorizontalGridLinesBrush="#D9E3E8" VerticalGridLinesBrush="Transparent" ColumnHeaderHeight="31" RowHeight="31" FontSize="11" EnableRowVirtualization="True" EnableColumnVirtualization="True" AutomationProperties.Name="조회 결과 표">
                                 <DataGrid.ColumnHeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#DDE8ED"/><Setter Property="Foreground" Value="#344F5F"/><Setter Property="BorderBrush" Value="#BFCED6"/><Setter Property="BorderThickness" Value="0,0,1,1"/><Setter Property="Padding" Value="9,0"/><Setter Property="FontSize" Value="10"/><Setter Property="FontWeight" Value="SemiBold"/></Style></DataGrid.ColumnHeaderStyle>
                                 <DataGrid.CellStyle><Style TargetType="DataGridCell"><Setter Property="Padding" Value="7,0"/><Setter Property="BorderThickness" Value="0"/><Setter Property="VerticalContentAlignment" Value="Center"/><Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#D8EBF2"/><Setter Property="Foreground" Value="#233746"/></Trigger></Style.Triggers></Style></DataGrid.CellStyle>
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="42"/><DataGridTextColumn Header="등록번호" Binding="{Binding RegistrationNumber}" Width="116"/><DataGridTextColumn Header="조회결과" Binding="{Binding QueryState}" Width="76"/><DataGridTextColumn Header="도서상태" Binding="{Binding BookState}" Width="92"/><DataGridTextColumn Header="소장위치" Binding="{Binding Location}" Width="116"/><DataGridTextColumn Header="청구기호" Binding="{Binding CallNumber}" Width="138"/><DataGridTextColumn Header="서명" Binding="{Binding Title}" Width="245"/><DataGridTextColumn Header="저자" Binding="{Binding Author}" Width="138"/><DataGridTextColumn Header="출판사" Binding="{Binding Publisher}" Width="138"/><DataGridTextColumn Header="출판년" Binding="{Binding PublicationYear}" Width="66"/><DataGridTextColumn Header="ISBN" Binding="{Binding Isbn}" Width="116"/><DataGridTextColumn Header="정보출처" Binding="{Binding DataSource}" Width="170"/><DataGridTextColumn Header="처리메시지" Binding="{Binding Message}" Width="205"/>
+                                    <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="42"/><DataGridTextColumn Header="등록번호" Binding="{Binding RegistrationNumber}" Width="116"/><DataGridTextColumn Header="조회결과" Binding="{Binding QueryState}" Width="88"/><DataGridTextColumn Header="도서상태" Binding="{Binding BookState}" Width="92"/><DataGridTextColumn Header="반납기한" Binding="{Binding ReturnDue}" Width="96"/><DataGridTextColumn Header="소장위치" Binding="{Binding Location}" Width="116"/><DataGridTextColumn Header="청구기호" Binding="{Binding CallNumber}" Width="138"/><DataGridTextColumn Header="서명" Binding="{Binding Title}" Width="245"/><DataGridTextColumn Header="저자" Binding="{Binding Author}" Width="138"/><DataGridTextColumn Header="출판사" Binding="{Binding Publisher}" Width="138"/><DataGridTextColumn Header="출판년" Binding="{Binding PublicationYear}" Width="66"/><DataGridTextColumn Header="ISBN" Binding="{Binding Isbn}" Width="116"/><DataGridTextColumn Header="최종변경일" Binding="{Binding CatalogLastChanged}" Width="92"/><DataGridTextColumn Header="조회시각" Binding="{Binding CheckedAt, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="128"/><DataGridTextColumn Header="정보출처" Binding="{Binding DataSource}" Width="170"/><DataGridTextColumn Header="처리메시지" Binding="{Binding Message}" Width="205"/>
+                                    <DataGridTemplateColumn Header="상세" Width="58">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="열기" Padding="5,2" FontSize="9" CommandParameter="{Binding DetailUrl}" Click="OpenDetail_Click">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DetailUrl}" Value=""><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                                <DataTrigger Binding="{Binding DetailUrl}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>

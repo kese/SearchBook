@@ -22,6 +22,22 @@ public partial class App : System.Windows.Application
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         base.OnStartup(e);
+        try
+        {
+            AppDataPaths.Current.EnsureCreated();
+            AppDataPaths.Current.CleanupPreviews(DateTime.UtcNow, TimeSpan.FromDays(7));
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"SearchBook 사용자 데이터 폴더를 준비할 수 없습니다.\n\n{ex.GetBaseException().Message}",
+                "SearchBook 시작 실패",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(1);
+            return;
+        }
+
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
@@ -40,7 +56,7 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private void InitializeTrayIcon(Window window)
+    private void InitializeTrayIcon(MainWindow window)
     {
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "SearchBookTray.ico");
         if (!File.Exists(iconPath)) return;
@@ -50,7 +66,7 @@ public partial class App : System.Windows.Application
         _updateItem = new FormsToolStripMenuItem("업데이트 확인");
         _updateItem.Click += async (_, _) => await CheckForUpdatesAsync(window);
         var exitItem = new FormsToolStripMenuItem("종료");
-        exitItem.Click += (_, _) => Dispatcher.Invoke(Shutdown);
+        exitItem.Click += (_, _) => Dispatcher.Invoke(() => window.RequestClose());
         _trayMenu = new FormsContextMenuStrip();
         _trayMenu.Items.Add(openItem);
         _trayMenu.Items.Add(_updateItem);
@@ -67,7 +83,7 @@ public partial class App : System.Windows.Application
         _trayIcon.DoubleClick += (_, _) => RestoreWindow(window);
     }
 
-    private async Task CheckForUpdatesAsync(Window owner)
+    public async Task CheckForUpdatesAsync(Window owner)
     {
         if (_updateItem is null || !_updateItem.Enabled) return;
         _updateItem.Enabled = false;
@@ -106,7 +122,7 @@ public partial class App : System.Windows.Application
                 _updateItem.Text = "업데이트 다운로드 중…";
                 var safeTag = string.Concat(result.TagName.Select(character =>
                     char.IsLetterOrDigit(character) || character is '.' or '-' or '_' ? character : '_'));
-                var destination = Path.Combine(AppContext.BaseDirectory, "updates", safeTag, result.Asset.Name);
+                var destination = Path.Combine(AppDataPaths.Current.UpdatesDirectory, safeTag, result.Asset.Name);
                 var downloadedPath = await updateService.DownloadAsync(result.Asset, destination);
                 System.Windows.MessageBox.Show(
                     owner,

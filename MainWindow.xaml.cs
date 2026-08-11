@@ -2,8 +2,10 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
@@ -16,10 +18,18 @@ public partial class MainWindow : Window
 {
     private static readonly string[] SupportedExtensions = [".xlsx", ".txt", ".csv", ".tsv"];
     private CancellationTokenSource? _cancellationTokenSource;
+    private CancellationTokenSource? _loadCancellationTokenSource;
     private string? _inputPath;
     private string? _lastResultPath;
     private bool _isRunning;
+    private bool _allowClose;
+    private bool _closeRequested;
+    private bool _resumePendingOnly;
+    private int _loadGeneration;
+    private Task? _activeRunTask;
     private readonly ProcessingSpeedTracker _speedTracker = new();
+    private readonly ICollectionView _resultsView;
+    private readonly AppDataPaths _appDataPaths = AppDataPaths.Current;
 
     public ObservableCollection<BookResult> Results { get; } = [];
 
@@ -27,6 +37,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = this;
+        _resultsView = CollectionViewSource.GetDefaultView(Results);
+        _resultsView.Filter = FilterResult;
+        ResultsDataGrid.ItemsSource = _resultsView;
+        FooterStatusText.Text = $"준비됨 · 결과 폴더 {_appDataPaths.ResultsDirectory}";
     }
 
     private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
@@ -52,15 +66,16 @@ public partial class MainWindow : Window
     {
         e.Effects = HasSupportedFile(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
-        DropZoneBorder.BorderBrush = e.Effects == DragDropEffects.Copy
+        DropZoneButton.BorderBrush = e.Effects == DragDropEffects.Copy
             ? new SolidColorBrush(Color.FromRgb(15, 98, 254))
             : new SolidColorBrush(Color.FromRgb(141, 141, 141));
     }
 
     private async void Window_Drop(object sender, System.Windows.DragEventArgs e)
     {
-        DropZoneBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(141, 141, 141));
+        DropZoneButton.BorderBrush = new SolidColorBrush(Color.FromRgb(141, 141, 141));
         if (!HasSupportedFile(e.Data)) return;
+        if (!ConfirmReplaceCurrentResults()) return;
         var path = ((string[])e.Data.GetData(DataFormats.FileDrop)!)[0];
         await LoadInputFileAsync(path);
     }
@@ -73,7 +88,7 @@ public partial class MainWindow : Window
                SupportedExtensions.Contains(Path.GetExtension(paths[0]), StringComparer.OrdinalIgnoreCase);
     }
 
-    private void DropZone_Click(object sender, MouseButtonEventArgs e) => ChooseFile();
+    private void DropZone_Click(object sender, RoutedEventArgs e) => ChooseFile();
     private void ChooseFile_Click(object sender, RoutedEventArgs e) => ChooseFile();
 
     private void ChooseFile()
@@ -86,39 +101,29 @@ public partial class MainWindow : Window
             Multiselect = false,
             CheckFileExists = true
         };
-        if (dialog.ShowDialog(this) == true) _ = LoadInputFileAsync(dialog.FileName);
+        if (dialog.ShowDialog(this) == true && ConfirmReplaceCurrentResults())
+            _ = LoadInputFileAsync(dialog.FileName);
     }
 
     private async Task LoadInputFileAsync(string path)
     {
         if (_isRunning) return;
+        var generation = Interlocked.Increment(ref _loadGeneration);
+        _loadCancellationTokenSource?.Cancel();
+        _loadCancellationTokenSource?.Dispose();
+        _loadCancellationTokenSource = new CancellationTokenSource();
+        var token = _loadCancellationTokenSource.Token;
         SetBusyForLoad(true);
         CurrentStatusText.Text = "등록번호를 읽는 중입니다…";
         try
         {
-            var numbers = await Task.Run(() => RegistrationNumberReader.Read(path));
-            Results.Clear();
-            for (var i = 0; i < numbers.Count; i++)
-                Results.Add(new BookResult { Sequence = i + 1, RegistrationNumber = numbers[i] });
-
-            _inputPath = path;
-            _lastResultPath = null;
-            SelectedFileNameText.Text = Path.GetFileName(path);
-            LoadedCountText.Text = $"중복을 제외한 등록번호 {numbers.Count:N0}건";
-            SelectedFilePanel.Visibility = Visibility.Visible;
-            CurrentStatusText.Text = $"{numbers.Count:N0}건을 불러왔습니다. 조회 시작을 눌러 주세요.";
-            FooterStatusText.Text = $"입력 준비 완료 · {path}";
-            ProgressMetricText.Text = $"0 / {numbers.Count:N0}";
-            SuccessMetricText.Text = "0";
-            FailureMetricText.Text = "0";
-            RemainingMetricText.Text = "—";
-            SpeedMetricText.Text = "— 건/분";
-            SpeedGraphLine.Points.Clear();
-            TransferStatusText.Text = "조회 대기 중";
-            MainProgressBar.Value = 0;
-            StartButton.IsEnabled = true;
-            ExportButton.IsEnabled = false;
-            OpenCurrentResultButton.IsEnabled = true;
+            var summary = await Task.Run(() => RegistrationNumberReader.ReadDetailed(path), token);
+            token.ThrowIfCancellationRequested();
+            if (generation != _loadGeneration) return;
+            ApplyFreshInput(summary, path, Path.GetFileName(path));
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
@@ -127,7 +132,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            SetBusyForLoad(false);
+            if (generation == _loadGeneration) SetBusyForLoad(false);
         }
     }
 
@@ -135,29 +140,57 @@ public partial class MainWindow : Window
 
     private void SetBusyForLoad(bool busy)
     {
-        DropZoneBorder.IsEnabled = !busy;
-        StartButton.IsEnabled = !busy && Results.Count > 0;
+        DropZoneButton.IsEnabled = !busy;
+        ChooseFileButton.IsEnabled = !busy;
+        PasteInputButton.IsEnabled = !busy;
+        ResumeButton.IsEnabled = !busy;
+        StartButton.IsEnabled = !busy && CanStartLookup;
         Mouse.OverrideCursor = busy ? Cursors.Wait : null;
     }
 
     private async void Start_Click(object sender, RoutedEventArgs e)
     {
-        if (_isRunning || Results.Count == 0 || string.IsNullOrWhiteSpace(_inputPath)) return;
+        await BeginLookupAsync(_resumePendingOnly);
+    }
 
+    private async Task BeginLookupAsync(bool retryOnly)
+    {
+        if (_isRunning || Results.Count == 0 || _activeRunTask is { IsCompleted: false }) return;
+        var rows = retryOnly
+            ? Results.Where(LookupResultClassifier.ShouldRetry).ToList()
+            : Results.ToList();
+        if (rows.Count == 0)
+        {
+            CurrentStatusText.Text = "재조회할 미확인 또는 중지된 결과가 없습니다.";
+            return;
+        }
+
+        _activeRunTask = RunLookupAsync(rows, retryOnly);
+        try
+        {
+            await _activeRunTask;
+        }
+        finally
+        {
+            _activeRunTask = null;
+        }
+    }
+
+    private async Task RunLookupAsync(IReadOnlyList<BookResult> rows, bool retryOnly)
+    {
         var selectedItem = DelayComboBox.SelectedItem as ComboBoxItem;
         var delay = int.TryParse(selectedItem?.Tag?.ToString(), out var parsedDelay) ? parsedDelay : 700;
         var settings = new LookupSettings(delay, MaxRetries: 2, AutosaveEvery: 50);
-        var resultsDirectory = Path.Combine(AppContext.BaseDirectory, "results");
-        Directory.CreateDirectory(resultsDirectory);
         var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(_inputPath));
-        _lastResultPath = Path.Combine(resultsDirectory, $"{stem}_도서상태_{stamp}.xlsx");
+        var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(_inputPath ?? _inputDisplayName));
+        var runLabel = retryOnly ? "_재조회" : "";
+        _lastResultPath = Path.Combine(_appDataPaths.ResultsDirectory, $"{stem}_도서상태{runLabel}_{stamp}.xlsx");
 
         _cancellationTokenSource = new CancellationTokenSource();
         var token = _cancellationTokenSource.Token;
         _isRunning = true;
         ToggleRunningState(true);
-        ResetRowsForRun();
+        ResetRowsForRun(rows);
         _speedTracker.Reset();
         SpeedGraphLine.Points.Clear();
 
@@ -170,10 +203,10 @@ public partial class MainWindow : Window
         var localStatusCatalog = new LocalBookStatusCatalog(Path.Combine(AppContext.BaseDirectory, "docs"));
         try
         {
-            foreach (var row in Results)
+            foreach (var row in rows)
             {
                 token.ThrowIfCancellationRequested();
-                row.QueryState = "조회 중";
+                row.QueryState = LookupResultClassifier.Running;
                 row.Message = "도서관 서버 조회 중";
                 CurrentStatusText.Text = $"{row.RegistrationNumber} 조회 중…";
 
@@ -186,7 +219,7 @@ public partial class MainWindow : Window
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
                 {
-                    row.QueryState = "중지됨";
+                    row.QueryState = LookupResultClassifier.Canceled;
                     row.Message = "사용자가 조회를 중지했습니다.";
                     throw;
                 }
@@ -201,7 +234,7 @@ public partial class MainWindow : Window
                 }
 
                 completed++;
-                UpdateProgress(completed, Results.Count, success, failed, stopwatch.Elapsed, row.RegistrationNumber);
+                UpdateProgress(completed, rows.Count, success, failed, stopwatch.Elapsed, row.RegistrationNumber);
 
                 if (completed % settings.AutosaveEvery == 0)
                 {
@@ -209,45 +242,52 @@ public partial class MainWindow : Window
                     await SaveResultsAsync(_lastResultPath);
                 }
 
-                if (completed % 10 == 0) ResultsDataGrid.ScrollIntoView(row);
+                if (completed % 10 == 0 && !ResultsDataGrid.IsKeyboardFocusWithin && ResultsDataGrid.SelectedItem is null)
+                    ResultsDataGrid.ScrollIntoView(row);
             }
 
             await SaveResultsAsync(_lastResultPath);
-            CurrentStatusText.Text = $"조회가 완료되었습니다. 성공 {success:N0}건, 미확인/실패 {failed:N0}건";
+            CurrentStatusText.Text = $"조회가 완료되었습니다. 확인 {success:N0}건, 미확인 {failed:N0}건";
             FooterStatusText.Text = $"완료 · {_lastResultPath}";
             TransferStatusText.Text = "정리 완료";
             System.Media.SystemSounds.Asterisk.Play();
         }
         catch (OperationCanceledException)
         {
-            await SaveResultsAsync(_lastResultPath);
-            CurrentStatusText.Text = $"조회가 중지되었습니다. 완료된 {completed:N0}건까지 저장했습니다.";
-            FooterStatusText.Text = $"중지됨 · 중간 결과 보존 · {_lastResultPath}";
-            TransferStatusText.Text = "중간 결과 보존됨";
+            var saved = await TrySaveResultsAsync(_lastResultPath);
+            CurrentStatusText.Text = saved
+                ? $"조회가 중지되었습니다. 완료된 {completed:N0}건까지 저장했습니다."
+                : $"조회가 중지되었지만 완료된 {completed:N0}건을 저장하지 못했습니다.";
+            FooterStatusText.Text = saved
+                ? $"중지됨 · 중간 결과 보존 · {_lastResultPath}"
+                : "중지됨 · 결과 저장 실패";
+            TransferStatusText.Text = saved ? "중간 결과 보존됨" : "저장 실패";
         }
         catch (Exception ex)
         {
-            try { await SaveResultsAsync(_lastResultPath); } catch { }
-            CurrentStatusText.Text = "예기치 않은 오류로 중단되었습니다. 처리된 결과는 보존했습니다.";
-            TransferStatusText.Text = "오류 · 결과 보존됨";
+            var saved = await TrySaveResultsAsync(_lastResultPath);
+            CurrentStatusText.Text = saved
+                ? "예기치 않은 오류로 중단되었습니다. 처리된 결과는 보존했습니다."
+                : "예기치 않은 오류로 중단되었으며 결과 저장에도 실패했습니다.";
+            TransferStatusText.Text = saved ? "오류 · 결과 보존됨" : "오류 · 저장 실패";
             MessageBox.Show(this, ex.Message, "조회 오류", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
             stopwatch.Stop();
             _isRunning = false;
+            _resumePendingOnly = false;
             ToggleRunningState(false);
-            _cancellationTokenSource.Dispose();
+            _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
-            ExportButton.IsEnabled = Results.Count > 0;
-            OpenCurrentResultButton.IsEnabled = Results.Count > 0;
-            OpenCurrentResultButton.Content = "결과 Excel 열기";
+            UpdateActionAvailability();
+            _resultsView.Refresh();
         }
     }
 
     private static void ApplyLookup(BookResult row, LookupData data)
     {
-        row.QueryState = data.Success ? "성공" : "미확인";
+        row.QueryState = LookupResultClassifier.GetQueryState(data);
         row.BookState = data.BookState;
         row.ReturnDue = data.ReturnDue;
         row.Location = data.Location;
@@ -265,11 +305,11 @@ public partial class MainWindow : Window
         row.CheckedAt = DateTime.Now;
     }
 
-    private void ResetRowsForRun()
+    private static void ResetRowsForRun(IEnumerable<BookResult> rows)
     {
-        foreach (var row in Results)
+        foreach (var row in rows)
         {
-            row.QueryState = "대기";
+            row.QueryState = LookupResultClassifier.Pending;
             row.BookState = "";
             row.ReturnDue = "";
             row.Location = "";
@@ -334,17 +374,20 @@ public partial class MainWindow : Window
 
     private void ToggleRunningState(bool running)
     {
-        StartButton.IsEnabled = Results.Count > 0;
-        StartButton.IsHitTestVisible = !running;
-        StartButton.Focusable = !running;
+        StartButton.IsEnabled = !running && CanStartLookup;
         StartIdleContent.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
         StartRunningContent.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
         CancelButton.IsEnabled = running;
         DelayComboBox.IsEnabled = !running;
-        DropZoneBorder.IsEnabled = !running;
+        DropZoneButton.IsEnabled = !running;
+        ChooseFileButton.IsEnabled = !running;
+        PasteInputButton.IsEnabled = !running;
+        ResumeButton.IsEnabled = !running;
+        TemplateButton.IsEnabled = !running;
         SelectedFilePanel.IsEnabled = !running;
         ExportButton.IsEnabled = !running && Results.Count > 0;
         OpenCurrentResultButton.IsEnabled = Results.Count > 0;
+        RetryUnconfirmedButton.IsEnabled = !running && Results.Any(LookupResultClassifier.ShouldRetry);
         OpenCurrentResultButton.Content = running ? "작업 중 결과 열기" : "현재 결과 열기";
 
         if (running)
@@ -370,8 +413,19 @@ public partial class MainWindow : Window
     {
         var snapshot = Results.ToList();
         await Task.Run(() => XlsxExporter.Write(path, snapshot));
-        ExportButton.IsEnabled = true;
-        OpenCurrentResultButton.IsEnabled = true;
+    }
+
+    private async Task<bool> TrySaveResultsAsync(string path)
+    {
+        try
+        {
+            await SaveResultsAsync(path);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async void Export_Click(object sender, RoutedEventArgs e)
@@ -386,7 +440,8 @@ public partial class MainWindow : Window
             Filter = "Excel 통합 문서 (*.xlsx)|*.xlsx",
             DefaultExt = ".xlsx",
             AddExtension = true,
-            FileName = defaultName
+            FileName = defaultName,
+            InitialDirectory = _appDataPaths.ResultsDirectory
         };
         if (dialog.ShowDialog(this) != true) return;
         try
@@ -437,9 +492,8 @@ public partial class MainWindow : Window
             }
             else
             {
-                var previewDirectory = Path.Combine(AppContext.BaseDirectory, "results", "previews");
-                var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(_inputPath ?? "도서목록"));
-                path = Path.Combine(previewDirectory, $"{stem}_작업중_{DateTime.Now:yyyyMMdd_HHmmss_fff}.xlsx");
+                var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(_inputPath ?? _inputDisplayName));
+                path = Path.Combine(_appDataPaths.PreviewsDirectory, $"{stem}_작업중_{DateTime.Now:yyyyMMdd_HHmmss_fff}.xlsx");
                 var snapshot = Results.ToList();
                 await Task.Run(() => XlsxExporter.Write(path, snapshot));
             }
@@ -469,20 +523,47 @@ public partial class MainWindow : Window
         return message.Length <= 180 ? message : message[..180] + "…";
     }
 
+    public void RequestClose() => Close();
+
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (_isRunning)
+        if (_allowClose)
         {
-            var answer = MessageBox.Show(this,
-                "조회가 진행 중입니다. 종료하면 현재 요청을 취소하고 마지막 자동저장 지점까지 결과가 남습니다. 종료할까요?",
-                "조회 중 종료", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (answer != MessageBoxResult.Yes)
-            {
-                e.Cancel = true;
-                return;
-            }
-            _cancellationTokenSource?.Cancel();
+            base.OnClosing(e);
+            return;
         }
-        base.OnClosing(e);
+
+        if (!_isRunning)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
+        e.Cancel = true;
+        if (_closeRequested) return;
+        var answer = MessageBox.Show(this,
+            "조회가 진행 중입니다. 현재 요청을 중지하고 완료된 결과를 저장한 뒤 종료할까요?",
+            "안전하게 종료", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes) return;
+
+        _closeRequested = true;
+        _ = CloseAfterActiveRunAsync();
+    }
+
+    private async Task CloseAfterActiveRunAsync()
+    {
+        CurrentStatusText.Text = "현재 요청을 중지하고 결과를 저장한 뒤 종료합니다…";
+        _cancellationTokenSource?.Cancel();
+        if (_activeRunTask is not null)
+            await _activeRunTask;
+        _allowClose = true;
+        Close();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _loadCancellationTokenSource?.Cancel();
+        _loadCancellationTokenSource?.Dispose();
+        base.OnClosed(e);
     }
 }

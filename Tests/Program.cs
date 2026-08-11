@@ -39,6 +39,16 @@ Run("TXT 등록번호 추출과 중복 제거", () =>
     Assert(values.SequenceEqual(["EM00510342", "WM00000001"]), string.Join(",", values));
 });
 
+Run("등록번호 입력 요약", () =>
+{
+    var summary = RegistrationNumberReader.ReadText(
+        "등록번호\nEM00510342\nem00510342\n메모, WM00000001\n무시할 값");
+    Assert(summary.Numbers.SequenceEqual(["EM00510342", "WM00000001"]), "등록번호 요약 결과 불일치");
+    Assert(summary.ValuesScanned == 5, $"스캔 값 수 불일치: {summary.ValuesScanned}");
+    Assert(summary.MatchesFound == 3, $"일치 수 불일치: {summary.MatchesFound}");
+    Assert(summary.DuplicatesRemoved == 1, $"중복 제거 수 불일치: {summary.DuplicatesRemoved}");
+});
+
 Run("XLSX 쓰기/읽기 왕복", () =>
 {
     var path = Path.Combine(artifacts, "roundtrip.xlsx");
@@ -62,6 +72,158 @@ Run("XLSX 쓰기/읽기 왕복", () =>
     }
     var values = RegistrationNumberReader.Read(path);
     Assert(values.SequenceEqual(["EM00510342", "WM00000001"]), "XLSX 왕복 등록번호 불일치");
+});
+
+Run("자동저장 결과 체크포인트 복원", () =>
+{
+    var checkedAt = new DateTime(2026, 8, 11, 14, 30, 0);
+    var path = Path.Combine(artifacts, "checkpoint.xlsx");
+    XlsxExporter.Write(path,
+    [
+        new BookResult
+        {
+            Sequence = 1,
+            RegistrationNumber = "EM00510342",
+            QueryState = "성공",
+            BookState = "대출중",
+            ReturnDue = "2026-08-20",
+            Location = "중앙도서관",
+            CallNumber = "811.7 신94ㅇ",
+            Title = "인생의 역사",
+            Author = "신형철",
+            DataSource = "도서관 실시간 조회",
+            CheckedAt = checkedAt
+        },
+        new BookResult
+        {
+            Sequence = 2,
+            RegistrationNumber = "WM00000001",
+            QueryState = "미확인",
+            Message = "재조회 필요"
+        }
+    ]);
+
+    var rows = ResultWorkbookReader.Read(path);
+    Assert(rows.Count == 2, $"체크포인트 행 수 불일치: {rows.Count}");
+    Assert(rows[0].RegistrationNumber == "EM00510342" && rows[0].QueryState == "실시간 확인", "체크포인트 상태 복원 실패");
+    Assert(rows[0].ReturnDue == "2026-08-20" && rows[0].Title == "인생의 역사", "체크포인트 상세정보 복원 실패");
+    Assert(rows[0].CheckedAt == checkedAt, $"조회시각 복원 실패: {rows[0].CheckedAt}");
+    Assert(rows[1].Message == "재조회 필요", "체크포인트 메시지 복원 실패");
+});
+
+Run("실시간과 로컬 스냅샷 상태 분리", () =>
+{
+    var live = new LookupData(
+        true, "대출중", "", "", "", "", "", "", "조회 완료",
+        DataSource: "도서관 실시간 조회");
+    var merged = live with { DataSource = "도서관 실시간 조회 + 로컬 전체목록" };
+    var local = live with { DataSource = "로컬 전체목록" };
+    var missing = LookupData.NotFound("미확인");
+
+    Assert(LookupResultClassifier.GetQueryState(live) == "실시간 확인", "실시간 상태 분류 실패");
+    Assert(LookupResultClassifier.GetQueryState(merged) == "실시간 확인", "실시간+로컬 상태 분류 실패");
+    Assert(LookupResultClassifier.GetQueryState(local) == "로컬 스냅샷", "로컬 상태 분류 실패");
+    Assert(LookupResultClassifier.GetQueryState(missing) == "미확인", "미확인 상태 분류 실패");
+
+    Assert(!LookupResultClassifier.ShouldRetry(new BookResult
+    {
+        Sequence = 1,
+        RegistrationNumber = "EM00510342",
+        QueryState = "실시간 확인"
+    }), "실시간 확인 행이 재조회 대상으로 분류됨");
+    Assert(LookupResultClassifier.ShouldRetry(new BookResult
+    {
+        Sequence = 2,
+        RegistrationNumber = "WM00000001",
+        QueryState = "미확인"
+    }), "미확인 행이 재조회 대상이 아님");
+
+    Assert(new BookResult
+    {
+        Sequence = 3,
+        RegistrationNumber = "EM00000003",
+        QueryState = LookupResultClassifier.Live
+    }.IsSuccess, "실시간 확인 행 성공 스타일 분류 실패");
+    Assert(new BookResult
+    {
+        Sequence = 4,
+        RegistrationNumber = "EM00000004",
+        QueryState = LookupResultClassifier.LocalSnapshot
+    }.IsSuccess, "로컬 스냅샷 행 성공 스타일 분류 실패");
+});
+
+Run("사용자 데이터 폴더 생성과 오래된 미리보기 정리", () =>
+{
+    var root = Path.Combine(artifacts, "app-data");
+    if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    var paths = new AppDataPaths(root);
+    paths.EnsureCreated();
+    Assert(Directory.Exists(paths.ResultsDirectory), "결과 폴더 생성 실패");
+    Assert(Directory.Exists(paths.PreviewsDirectory), "미리보기 폴더 생성 실패");
+    Assert(Directory.Exists(paths.UpdatesDirectory), "업데이트 폴더 생성 실패");
+
+    var oldPreview = Path.Combine(paths.PreviewsDirectory, "old.xlsx");
+    var currentPreview = Path.Combine(paths.PreviewsDirectory, "current.xlsx");
+    File.WriteAllText(oldPreview, "old");
+    File.WriteAllText(currentPreview, "current");
+    File.SetLastWriteTimeUtc(oldPreview, new DateTime(2026, 7, 1));
+    File.SetLastWriteTimeUtc(currentPreview, new DateTime(2026, 8, 10));
+
+    var removed = paths.CleanupPreviews(new DateTime(2026, 8, 11), TimeSpan.FromDays(7));
+    Assert(removed == 1 && !File.Exists(oldPreview), "오래된 미리보기 정리 실패");
+    Assert(File.Exists(currentPreview), "최근 미리보기가 잘못 삭제됨");
+});
+
+Run("진단 정보에서 등록번호 제외", () =>
+{
+    var paths = new AppDataPaths(Path.Combine(artifacts, "diagnostics"));
+    var reportPath = DiagnosticReportWriter.Write(
+        paths,
+        "1.3.0",
+        @"C:\input\도서목록.xlsx",
+        [
+            new BookResult
+            {
+                Sequence = 1,
+                RegistrationNumber = "EM00510342",
+                QueryState = LookupResultClassifier.Live,
+                Title = "민감 서명",
+                Author = "민감 저자",
+                Location = "민감 위치",
+                CallNumber = "민감 청구기호",
+                DetailUrl = "https://example.invalid/private",
+                Message = "민감 메시지"
+            }
+        ]);
+    var report = File.ReadAllText(reportPath);
+    Assert(report.Contains("버전: 1.3.0"), "진단 버전 누락");
+    Assert(report.Contains("입력 표시명: 도서목록.xlsx"), "진단 입력 표시명 누락");
+    Assert(!report.Contains("EM00510342"), "진단 정보에 등록번호가 노출됨");
+    Assert(!report.Contains("민감"), "진단 정보에 도서 상세정보가 노출됨");
+    Assert(!report.Contains("example.invalid"), "진단 정보에 상세 URL이 노출됨");
+});
+
+Run("비정상 XLSX 압축률 차단", () =>
+{
+    var path = Path.Combine(artifacts, "zip-bomb.xlsx");
+    if (File.Exists(path)) File.Delete(path);
+    using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+    {
+        var entry = archive.CreateEntry("xl/worksheets/sheet1.xml", CompressionLevel.SmallestSize);
+        using var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false));
+        writer.Write(new string('A', 2 * 1024 * 1024));
+    }
+
+    var rejected = false;
+    try
+    {
+        RegistrationNumberReader.Read(path);
+    }
+    catch (InvalidDataException ex) when (ex.Message.Contains("압축률", StringComparison.Ordinal))
+    {
+        rejected = true;
+    }
+    Assert(rejected, "비정상 XLSX 압축률이 차단되지 않음");
 });
 
 Run("보조 Excel 번호대/EM·WM 상태 조회", () =>
