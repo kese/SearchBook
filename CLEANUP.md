@@ -56,9 +56,10 @@
 
 - private 저장소: `https://github.com/StandardChartered/SearchBook`
 - 기본 브랜치: `main`
-- 프레임워크 의존형 Release: `v1.0.0`
-- Release 자산: `SearchBook-win-x64.zip` (.NET 10 Desktop Runtime x64 필요)
-- 현재 로컬 소스/배포 버전: `1.4.0` (WM 기준 Excel 일치·불일치 비교, 비교 필터·세부사항, 기존 결과 호환 포함)
+- v1.4.0 릴리즈/태그 커밋: `618921f` (`Release v1.4.0 WM reference comparison`)
+- GitHub Release: `v1.4.0` (공개 릴리즈, 최신 릴리즈)
+- Release 자산: `SearchBook-self-contained-win-x64.zip` (82,612,962 bytes, SHA-256 `7FBD834E77106077277A92325988BEE1BEDCFD848EFDB1142EE90AF149670322`)
+- 현재 로컬 소스/배포 버전: `1.4.0` (WM 기준 Excel 일치·불일치 비교, 상태 색상, 비교 필터·세부사항, 기존 결과 호환 포함)
 
 GitHub 쪽 사본까지 제거하려면 저장소 Settings의 Danger Zone에서 private 저장소를 별도로 삭제해야 합니다. 로컬 프로젝트 폴더 삭제만으로 GitHub 저장소나 Release는 삭제되지 않습니다.
 
