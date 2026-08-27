@@ -89,6 +89,7 @@ public partial class MainWindow
         SpeedGraphLine.Points.Clear();
         TransferStatusText.Text = "조회 대기 중";
         MainProgressBar.Value = 0;
+        UpdateReferenceSummary();
     }
 
     private bool ConfirmReplaceCurrentResults()
@@ -174,6 +175,8 @@ public partial class MainWindow
             "failed" => row.QueryState == LookupResultClassifier.Failed,
             "pending" => row.QueryState == LookupResultClassifier.Pending,
             "running" => row.QueryState == LookupResultClassifier.Running,
+            "reference-match" => row.ReferenceComparison == ReferenceComparisonClassifier.Match,
+            "reference-mismatch" => row.ReferenceComparison == ReferenceComparisonClassifier.Mismatch,
             _ => true
         };
         if (!matchesState) return false;
@@ -190,6 +193,8 @@ public partial class MainWindow
                Contains(row.Publisher, query) ||
                Contains(row.Isbn, query) ||
                Contains(row.DataSource, query) ||
+               Contains(row.ReferenceComparison, query) ||
+               Contains(row.ReferenceComparisonDetails, query) ||
                Contains(row.Message, query);
     }
 

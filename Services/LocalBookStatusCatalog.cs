@@ -7,6 +7,8 @@ namespace SearchBook.Services;
 
 public sealed partial class LocalBookStatusCatalog
 {
+    public const string WmReferenceFileName = "wm00010000-300000.xlsx";
+
     private readonly string _docsDirectory;
     private readonly Dictionary<string, IReadOnlyDictionary<string, LocalBookRecord>> _cache =
         new(StringComparer.OrdinalIgnoreCase);
@@ -19,30 +21,47 @@ public sealed partial class LocalBookStatusCatalog
     public LocalBookStatusResult Lookup(string registrationNumber)
     {
         var normalized = registrationNumber.Trim().ToUpperInvariant();
-        var rangeFileName = GetRangeFileName(normalized);
-        if (rangeFileName is null)
-            return LocalBookStatusResult.NotFound();
-
-        var path = Path.Combine(_docsDirectory, rangeFileName);
-        if (!File.Exists(path))
-            return LocalBookStatusResult.NotFound();
-
-        try
+        Exception? lastError = null;
+        foreach (var fileName in GetCandidateFileNames(normalized))
         {
-            if (!_cache.TryGetValue(path, out var records))
+            var path = Path.Combine(_docsDirectory, fileName);
+            if (!File.Exists(path)) continue;
+
+            try
             {
-                records = ReadRecords(path);
-                _cache[path] = records;
-            }
+                if (!_cache.TryGetValue(path, out var records))
+                {
+                    records = ReadRecords(path);
+                    _cache[path] = records;
+                }
 
-            return records.TryGetValue(normalized, out var record)
-                ? LocalBookStatusResult.Match(record, rangeFileName)
-                : LocalBookStatusResult.NotFound();
+                if (records.TryGetValue(normalized, out var record))
+                    return LocalBookStatusResult.Match(record, fileName);
+            }
+            catch (Exception ex)
+            {
+                lastError = ex.GetBaseException();
+            }
         }
-        catch (Exception ex)
-        {
-            return LocalBookStatusResult.Unavailable(ex.GetBaseException().Message);
-        }
+
+        return lastError is null
+            ? LocalBookStatusResult.NotFound()
+            : LocalBookStatusResult.Unavailable(lastError.Message);
+    }
+
+    public static IReadOnlyList<string> GetCandidateFileNames(string registrationNumber)
+    {
+        var normalized = registrationNumber.Trim().ToUpperInvariant();
+        var candidates = new List<string>();
+        var match = RegistrationNumberRegex().Match(normalized);
+        if (match.Success && normalized.StartsWith("WM", StringComparison.OrdinalIgnoreCase) &&
+            long.TryParse(match.Groups[1].Value, out var numericPart) && numericPart is >= 10_000 and <= 300_000)
+            candidates.Add(WmReferenceFileName);
+
+        var rangeFileName = GetRangeFileName(normalized);
+        if (rangeFileName is not null && !candidates.Contains(rangeFileName, StringComparer.OrdinalIgnoreCase))
+            candidates.Add(rangeFileName);
+        return candidates;
     }
 
     public static string? GetRangeFileName(string registrationNumber)
@@ -85,8 +104,9 @@ public sealed partial class LocalBookStatusCatalog
                 {
                     var header = RemoveWhitespace(cell.Value);
                     if (header is "등록번호" or "도서상태" or "소장위치" or "청구기호" or "서명" or
-                        "저자" or "출판사" or "출판년" or "ISBN" or "최종변경일" or "기준일")
-                        columns[header] = cell.Key;
+                        "저자" or "출판사" or "출판년" or "ISBN" or "최종변경일" or "기준일" or
+                        "자료상태" or "자료명" or "소장분관" or "소장서고")
+                        columns[CanonicalizeHeader(header)] = cell.Key;
                 }
 
                 headerFound = columns.ContainsKey("등록번호") && columns.ContainsKey("도서상태");
@@ -100,7 +120,7 @@ public sealed partial class LocalBookStatusCatalog
 
             records.TryAdd(normalized, new LocalBookRecord(
                 GetValue(values, columns, "도서상태"),
-                GetValue(values, columns, "소장위치"),
+                GetLocation(values, columns),
                 GetValue(values, columns, "청구기호"),
                 GetValue(values, columns, "서명"),
                 GetValue(values, columns, "저자"),
@@ -124,6 +144,26 @@ public sealed partial class LocalBookStatusCatalog
         columns.TryGetValue(header, out var column) && values.TryGetValue(column, out var value)
             ? value.Trim()
             : "";
+
+    private static string GetLocation(
+        IReadOnlyDictionary<int, string> values,
+        IReadOnlyDictionary<string, int> columns)
+    {
+        var direct = GetValue(values, columns, "소장위치");
+        if (!string.IsNullOrWhiteSpace(direct)) return direct;
+
+        var branch = GetValue(values, columns, "소장분관");
+        var storage = GetValue(values, columns, "소장서고");
+        return string.Join(" / ", new[] { branch, storage }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    private static string CanonicalizeHeader(string header) =>
+        header switch
+        {
+            "자료상태" => "도서상태",
+            "자료명" => "서명",
+            _ => header
+        };
 
     private static string ReadCellValue(XElement cell, IReadOnlyList<string> sharedStrings)
     {
@@ -230,8 +270,13 @@ public static class LookupFallbackResolver
         string registrationNumber,
         LookupData remoteData,
         LocalBookStatusCatalog localStatusCatalog)
+        => Resolve(registrationNumber, remoteData, localStatusCatalog.Lookup(registrationNumber));
+
+    public static LookupData Resolve(
+        string registrationNumber,
+        LookupData remoteData,
+        LocalBookStatusResult local)
     {
-        var local = localStatusCatalog.Lookup(registrationNumber);
         if (local.Found && local.Record is { } record)
         {
             var sourceDescription = string.IsNullOrWhiteSpace(record.SnapshotDate)

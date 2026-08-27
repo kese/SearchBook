@@ -21,6 +21,9 @@ public static class DiagnosticReportWriter
         var failed = rows.Count(row => row.QueryState == LookupResultClassifier.Failed);
         var pending = rows.Count(row => row.QueryState == LookupResultClassifier.Pending);
         var running = rows.Count(row => row.QueryState == LookupResultClassifier.Running);
+        var referenceMatches = rows.Count(row => row.ReferenceComparison == ReferenceComparisonClassifier.Match);
+        var referenceMismatches = rows.Count(row => row.ReferenceComparison == ReferenceComparisonClassifier.Mismatch);
+        var referenceOther = rows.Count - referenceMatches - referenceMismatches;
 
         var content = new StringBuilder()
             .AppendLine("SearchBook 진단 정보")
@@ -34,6 +37,9 @@ public static class DiagnosticReportWriter
             .AppendLine($"실패: {failed:N0}")
             .AppendLine($"대기: {pending:N0}")
             .AppendLine($"조회중: {running:N0}")
+            .AppendLine($"기준 Excel 일치: {referenceMatches:N0}")
+            .AppendLine($"기준 Excel 불일치: {referenceMismatches:N0}")
+            .AppendLine($"기준 Excel 기타: {referenceOther:N0}")
             .AppendLine($"사용자 데이터 폴더: {paths.RootDirectory}")
             .AppendLine($"생성 시각: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
             .ToString();

@@ -19,6 +19,8 @@ public sealed class BookResult : INotifyPropertyChanged
     private string _bibliographicInfo = "";
     private string _detailUrl = "";
     private string _dataSource = "";
+    private string _referenceComparison = "비교 대기";
+    private string _referenceComparisonDetails = "";
     private string _message = "";
     private DateTime? _checkedAt;
 
@@ -38,6 +40,8 @@ public sealed class BookResult : INotifyPropertyChanged
     public string BibliographicInfo { get => _bibliographicInfo; set => Set(ref _bibliographicInfo, value); }
     public string DetailUrl { get => _detailUrl; set => Set(ref _detailUrl, value); }
     public string DataSource { get => _dataSource; set => Set(ref _dataSource, value); }
+    public string ReferenceComparison { get => _referenceComparison; set => Set(ref _referenceComparison, value); }
+    public string ReferenceComparisonDetails { get => _referenceComparisonDetails; set => Set(ref _referenceComparisonDetails, value); }
     public string Message { get => _message; set => Set(ref _message, value); }
     public DateTime? CheckedAt { get => _checkedAt; set => Set(ref _checkedAt, value); }
     public bool IsSuccess => QueryState == "성공";

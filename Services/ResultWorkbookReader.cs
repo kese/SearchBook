@@ -63,6 +63,8 @@ public static class ResultWorkbookReader
                 BibliographicInfo = Get(values, headers, "서지정보"),
                 DetailUrl = Get(values, headers, "상세URL"),
                 DataSource = dataSource,
+                ReferenceComparison = Get(values, headers, "기준 Excel 비교", ReferenceComparisonClassifier.Pending),
+                ReferenceComparisonDetails = Get(values, headers, "기준 비교 세부사항"),
                 Message = Get(values, headers, "처리메시지"),
                 CheckedAt = ParseCheckedAt(Get(values, headers, "조회시각"))
             });

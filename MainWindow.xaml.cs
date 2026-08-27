@@ -48,11 +48,13 @@ public partial class MainWindow : Window
                          nameof(BookResult.Location),
                          nameof(BookResult.CallNumber),
                          nameof(BookResult.Title),
-                         nameof(BookResult.Author),
-                         nameof(BookResult.Publisher),
-                         nameof(BookResult.Isbn),
-                         nameof(BookResult.DataSource),
-                         nameof(BookResult.Message)
+                          nameof(BookResult.Author),
+                          nameof(BookResult.Publisher),
+                          nameof(BookResult.Isbn),
+                          nameof(BookResult.DataSource),
+                          nameof(BookResult.ReferenceComparison),
+                          nameof(BookResult.ReferenceComparisonDetails),
+                          nameof(BookResult.Message)
                      })
                 liveView.LiveFilteringProperties.Add(propertyName);
             liveView.IsLiveFiltering = true;
@@ -226,11 +228,13 @@ public partial class MainWindow : Window
                 row.QueryState = LookupResultClassifier.Running;
                 row.Message = "도서관 서버 조회 중";
                 CurrentStatusText.Text = $"{row.RegistrationNumber} 조회 중…";
+                var reference = localStatusCatalog.Lookup(row.RegistrationNumber);
 
                 try
                 {
                     var data = await client.LookupAsync(row.RegistrationNumber, token);
-                    data = LookupFallbackResolver.Resolve(row.RegistrationNumber, data, localStatusCatalog);
+                    ApplyReferenceComparison(row, data, reference);
+                    data = LookupFallbackResolver.Resolve(row.RegistrationNumber, data, reference);
                     ApplyLookup(row, data);
                     if (data.Success) success++; else failed++;
                 }
@@ -245,7 +249,8 @@ public partial class MainWindow : Window
                     var data = LookupFallbackResolver.Resolve(
                         row.RegistrationNumber,
                         LookupData.NotFound($"도서관 조회 실패: {CompactError(ex)}"),
-                        localStatusCatalog);
+                        reference);
+                    ApplyReferenceComparison(row, LookupData.NotFound(data.Message), reference);
                     ApplyLookup(row, data);
                     if (data.Success) success++; else failed++;
                 }
@@ -264,7 +269,9 @@ public partial class MainWindow : Window
             }
 
             await SaveResultsAsync(_lastResultPath);
-            CurrentStatusText.Text = $"조회가 완료되었습니다. 성공 {success:N0}건, 실패 {failed:N0}건";
+            CurrentStatusText.Text = $"조회가 완료되었습니다. 성공 {success:N0}건, 실패 {failed:N0}건 · " +
+                                     $"기준 일치 {Results.Count(row => row.ReferenceComparison == ReferenceComparisonClassifier.Match):N0}건, " +
+                                     $"불일치 {Results.Count(row => row.ReferenceComparison == ReferenceComparisonClassifier.Mismatch):N0}건";
             FooterStatusText.Text = $"완료 · {_lastResultPath}";
             TransferStatusText.Text = "정리 완료";
             System.Media.SystemSounds.Asterisk.Play();
@@ -325,6 +332,16 @@ public partial class MainWindow : Window
         row.CheckedAt = DateTime.Now;
     }
 
+    private static void ApplyReferenceComparison(
+        BookResult row,
+        LookupData liveData,
+        LocalBookStatusResult reference)
+    {
+        var comparison = ReferenceComparisonClassifier.Compare(liveData, reference);
+        row.ReferenceComparison = comparison.Status;
+        row.ReferenceComparisonDetails = comparison.Details;
+    }
+
     private void UpdateProgress(int completed, int total, int success, int failed, TimeSpan elapsed, string current)
     {
         ProgressMetricText.Text = $"{completed:N0} / {total:N0}";
@@ -337,12 +354,24 @@ public partial class MainWindow : Window
         var rate = _speedTracker.AddSample(completed, elapsed);
         SpeedMetricText.Text = rate <= 0 ? "— 건/분" : $"{rate:N1} 건/분";
         DrawSpeedGraph(_speedTracker.Samples);
+        UpdateReferenceSummary();
 
         if (completed > 0)
         {
             var remaining = TimeSpan.FromTicks((long)(elapsed.Ticks / (double)completed * (total - completed)));
             RemainingMetricText.Text = FormatDuration(remaining);
         }
+    }
+
+    private void UpdateReferenceSummary()
+    {
+        var wmRows = Results.Where(row => row.RegistrationNumber.StartsWith("WM", StringComparison.OrdinalIgnoreCase)).ToList();
+        var matches = wmRows.Count(row => row.ReferenceComparison == ReferenceComparisonClassifier.Match);
+        var mismatches = wmRows.Count(row => row.ReferenceComparison == ReferenceComparisonClassifier.Mismatch);
+        var other = wmRows.Count - matches - mismatches;
+        ReferenceSummaryText.Text = wmRows.Count == 0
+            ? "WM 기준 비교 · 대상 없음"
+            : $"WM 기준 비교 · 일치 {matches:N0} · 불일치 {mismatches:N0} · 기타 {other:N0}";
     }
 
     private static string FormatDuration(TimeSpan value)

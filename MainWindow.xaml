@@ -49,6 +49,32 @@
             <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
             <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
         </Style>
+        <Style x:Key="QueryStateText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#667A89"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="ToolTip" Value="{Binding ReferenceComparisonDetails}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding QueryState}" Value="성공"><Setter Property="Foreground" Value="#24785D"/></DataTrigger>
+                <DataTrigger Binding="{Binding QueryState}" Value="실패"><Setter Property="Foreground" Value="#B44545"/></DataTrigger>
+                <DataTrigger Binding="{Binding QueryState}" Value="조회중"><Setter Property="Foreground" Value="#176B87"/></DataTrigger>
+                <DataTrigger Binding="{Binding QueryState}" Value="조회 중"><Setter Property="Foreground" Value="#176B87"/></DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="BookStateText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#667A89"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding BookState}" Value="대출가능"><Setter Property="Foreground" Value="#24785D"/><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger>
+                <DataTrigger Binding="{Binding BookState}" Value="대출중"><Setter Property="Foreground" Value="#9A6A16"/><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger>
+                <DataTrigger Binding="{Binding BookState}" Value="대출불가"><Setter Property="Foreground" Value="#B44545"/><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger>
+                <DataTrigger Binding="{Binding BookState}" Value="소재불명"><Setter Property="Foreground" Value="#A13F55"/><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger>
+                <DataTrigger Binding="{Binding BookState}" Value="제적"><Setter Property="Foreground" Value="#7A4E8A"/><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger>
+                <DataTrigger Binding="{Binding BookState}" Value="파손자료"><Setter Property="Foreground" Value="#B44545"/><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Border BorderBrush="#7690A0" BorderThickness="1" Background="#E8EFF3">
@@ -225,9 +251,9 @@
                             <Grid.RowDefinitions><RowDefinition Height="54"/><RowDefinition Height="3"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                             <Grid Margin="14,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="154"/><ColumnDefinition Width="104"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center"><TextBlock Text="조회 결과 기록" FontSize="14" FontWeight="SemiBold"/><TextBlock x:Name="CurrentStatusText" Text="파일을 불러오면 결과 레코드가 표시됩니다." Foreground="#667A89" FontSize="10" Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"/></StackPanel>
+                                <StackPanel VerticalAlignment="Center"><TextBlock Text="조회 결과 기록" FontSize="14" FontWeight="SemiBold"/><TextBlock x:Name="CurrentStatusText" Text="파일을 불러오면 결과 레코드가 표시됩니다." Foreground="#667A89" FontSize="10" Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite"/><TextBlock x:Name="ReferenceSummaryText" Text="WM 기준 비교 대기" Foreground="#176B87" FontSize="9" Margin="0,1,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/></StackPanel>
                                 <Grid Grid.Column="1" Height="30" Margin="8,0,0,0">
-                                    <TextBox x:Name="SearchTextBox" VerticalContentAlignment="Center" Padding="8,3" FontSize="10" ToolTip="등록번호, 서명, 저자, 상태 검색" AutomationProperties.Name="결과 검색" TextChanged="SearchTextBox_TextChanged"/>
+                                    <TextBox x:Name="SearchTextBox" VerticalContentAlignment="Center" Padding="8,3" FontSize="10" ToolTip="등록번호, 서명, 저자, 상태, WM 기준 비교 검색" AutomationProperties.Name="결과 검색" TextChanged="SearchTextBox_TextChanged"/>
                                     <TextBlock Text="결과 검색" Margin="9,0,0,0" VerticalAlignment="Center" Foreground="#899AA6" FontSize="10" IsHitTestVisible="False">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
@@ -245,8 +271,8 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </Grid>
-                                <ComboBox x:Name="ResultFilterComboBox" Grid.Column="2" Height="30" Margin="6,0,0,0" VerticalContentAlignment="Center" FontSize="10" SelectedIndex="0" AutomationProperties.Name="결과 상태 필터" SelectionChanged="ResultFilterComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="전체 결과" Tag="all"/><ComboBoxItem Content="성공" Tag="success"/><ComboBoxItem Content="실패" Tag="failed"/><ComboBoxItem Content="대기" Tag="pending"/><ComboBoxItem Content="조회중" Tag="running"/>
+                                <ComboBox x:Name="ResultFilterComboBox" Grid.Column="2" Height="30" Margin="6,0,0,0" VerticalContentAlignment="Center" FontSize="10" SelectedIndex="0" AutomationProperties.Name="결과 및 WM 기준 필터" SelectionChanged="ResultFilterComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="전체 결과" Tag="all"/><ComboBoxItem Content="성공" Tag="success"/><ComboBoxItem Content="실패" Tag="failed"/><ComboBoxItem Content="대기" Tag="pending"/><ComboBoxItem Content="조회중" Tag="running"/><ComboBoxItem Content="WM 일치" Tag="reference-match"/><ComboBoxItem Content="WM 불일치" Tag="reference-mismatch"/>
                                 </ComboBox>
                                 <Button x:Name="RetryUnconfirmedButton" Grid.Column="3" Height="30" Margin="6,0,0,0" VerticalAlignment="Center" Padding="9,4" FontSize="10" IsEnabled="False" AutomationProperties.Name="실패 및 대기 결과 재조회 Ctrl+Shift+R" Click="RetryUnconfirmed_Click">
                                     <AccessText Text="실패 _재조회"/>
@@ -260,7 +286,7 @@
                                 <DataGrid.ColumnHeaderStyle><Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#DDE8ED"/><Setter Property="Foreground" Value="#344F5F"/><Setter Property="BorderBrush" Value="#BFCED6"/><Setter Property="BorderThickness" Value="0,0,1,1"/><Setter Property="Padding" Value="9,0"/><Setter Property="FontSize" Value="10"/><Setter Property="FontWeight" Value="SemiBold"/></Style></DataGrid.ColumnHeaderStyle>
                                 <DataGrid.CellStyle><Style TargetType="DataGridCell"><Setter Property="Padding" Value="7,0"/><Setter Property="BorderThickness" Value="0"/><Setter Property="VerticalContentAlignment" Value="Center"/><Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#D8EBF2"/><Setter Property="Foreground" Value="#233746"/></Trigger></Style.Triggers></Style></DataGrid.CellStyle>
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="42"/><DataGridTextColumn Header="등록번호" Binding="{Binding RegistrationNumber}" Width="116"/><DataGridTextColumn Header="조회결과" Binding="{Binding QueryState}" Width="88"/><DataGridTextColumn Header="도서상태" Binding="{Binding BookState}" Width="92"/><DataGridTextColumn Header="반납기한" Binding="{Binding ReturnDue}" Width="96"/><DataGridTextColumn Header="소장위치" Binding="{Binding Location}" Width="116"/><DataGridTextColumn Header="청구기호" Binding="{Binding CallNumber}" Width="138"/><DataGridTextColumn Header="서명" Binding="{Binding Title}" Width="245" ElementStyle="{StaticResource EllipsisCellText}"/><DataGridTextColumn Header="저자" Binding="{Binding Author}" Width="138"/><DataGridTextColumn Header="출판사" Binding="{Binding Publisher}" Width="138"/><DataGridTextColumn Header="출판년" Binding="{Binding PublicationYear}" Width="66"/><DataGridTextColumn Header="ISBN" Binding="{Binding Isbn}" Width="116"/><DataGridTextColumn Header="최종변경일" Binding="{Binding CatalogLastChanged}" Width="92"/><DataGridTextColumn Header="조회시각" Binding="{Binding CheckedAt, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="128"/><DataGridTextColumn Header="정보출처" Binding="{Binding DataSource}" Width="170"/><DataGridTextColumn Header="처리메시지" Binding="{Binding Message}" Width="205"/>
+                                    <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="42"/><DataGridTextColumn Header="등록번호" Binding="{Binding RegistrationNumber}" Width="116"/><DataGridTextColumn Header="조회결과" Binding="{Binding QueryState}" Width="88" ElementStyle="{StaticResource QueryStateText}"/><DataGridTextColumn Header="도서상태" Binding="{Binding BookState}" Width="92" ElementStyle="{StaticResource BookStateText}"/><DataGridTextColumn Header="반납기한" Binding="{Binding ReturnDue}" Width="96"/><DataGridTextColumn Header="소장위치" Binding="{Binding Location}" Width="116"/><DataGridTextColumn Header="청구기호" Binding="{Binding CallNumber}" Width="138"/><DataGridTextColumn Header="서명" Binding="{Binding Title}" Width="245" ElementStyle="{StaticResource EllipsisCellText}"/><DataGridTextColumn Header="저자" Binding="{Binding Author}" Width="138"/><DataGridTextColumn Header="출판사" Binding="{Binding Publisher}" Width="138"/><DataGridTextColumn Header="출판년" Binding="{Binding PublicationYear}" Width="66"/><DataGridTextColumn Header="ISBN" Binding="{Binding Isbn}" Width="116"/><DataGridTextColumn Header="최종변경일" Binding="{Binding CatalogLastChanged}" Width="92"/><DataGridTextColumn Header="조회시각" Binding="{Binding CheckedAt, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="128"/><DataGridTextColumn Header="정보출처" Binding="{Binding DataSource}" Width="170"/><DataGridTextColumn Header="처리메시지" Binding="{Binding Message}" Width="205"/>
                                     <DataGridTemplateColumn Header="상세" Width="58">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>

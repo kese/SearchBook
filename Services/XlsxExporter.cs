@@ -12,7 +12,7 @@ public static class XlsxExporter
     [
         "입력순번", "등록번호", "조회결과", "도서상태", "반납예정일/기한", "소장위치",
         "청구기호", "서명", "저자", "출판사", "출판년", "ISBN", "최종변경일",
-        "서지정보", "상세URL", "정보출처", "처리메시지", "조회시각"
+        "서지정보", "상세URL", "정보출처", "기준 Excel 비교", "기준 비교 세부사항", "처리메시지", "조회시각"
     ];
 
     public static void Write(string path, IReadOnlyList<BookResult> rows)
@@ -72,7 +72,7 @@ public static class XlsxExporter
         writer.WriteEndElement();
 
         writer.WriteStartElement("cols");
-        var widths = new[] { 10d, 18, 12, 15, 18, 22, 24, 42, 28, 28, 12, 23, 16, 40, 46, 28, 38, 21 };
+        var widths = new[] { 10d, 18, 12, 15, 18, 22, 24, 42, 28, 28, 12, 23, 16, 40, 46, 28, 14, 60, 38, 21 };
         for (var i = 0; i < widths.Length; i++)
         {
             writer.WriteStartElement("col");
@@ -103,7 +103,8 @@ public static class XlsxExporter
                 row.Sequence.ToString(), row.RegistrationNumber, row.QueryState, row.BookState,
                 row.ReturnDue, row.Location, row.CallNumber, row.Title, row.Author, row.Publisher,
                 row.PublicationYear, row.Isbn, row.CatalogLastChanged, row.BibliographicInfo,
-                row.DetailUrl, row.DataSource, row.Message, row.CheckedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
+                row.DetailUrl, row.DataSource, row.ReferenceComparison, row.ReferenceComparisonDetails,
+                row.Message, row.CheckedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
             };
             for (var c = 0; c < values.Length; c++)
             {

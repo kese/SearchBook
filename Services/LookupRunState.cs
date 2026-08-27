@@ -32,6 +32,8 @@ public static class LookupRunState
         row.BibliographicInfo = "";
         row.DetailUrl = "";
         row.DataSource = "";
+        row.ReferenceComparison = ReferenceComparisonClassifier.Pending;
+        row.ReferenceComparisonDetails = "";
         row.Message = "";
         row.CheckedAt = null;
     }

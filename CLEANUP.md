@@ -20,6 +20,9 @@
 - `dist\SearchBook-self-contained-win-x64.zip`: 일반 PC용 self-contained 배포 ZIP
 - `docs\18-26.xls`: 사용자가 제공한 2026-08-06 전체 도서정보 원본(개발 원본이며 배포 ZIP에는 포함하지 않음)
 - `docs\180k.xlsx` ~ `docs\250k.xlsx`: `18-26.xls`에서 생성한 번호대별 전체 도서정보 카탈로그(배포본의 `docs`에도 복사됨)
+- `docs\wm00010000-300000.xls`: 사용자가 제공한 WM 기준 Excel 원본(개발 원본이며 배포 ZIP에는 포함하지 않음)
+- `docs\wm00010000-300000.xlsx`: WM 기준 원본에서 생성한 Excel 설치 불필요 런타임 비교 카탈로그(배포본의 `docs`에도 복사됨)
+- `tools\Extract-WmReference.ps1`, `tools\build-wm-reference.mjs`: WM 기준 카탈로그 재생성용 프로젝트 도구(원본 재생성 시에만 사용)
 - `Assets\SearchBook-source.png`: 사용자가 제공한 고양이 아이콘 원본의 프로젝트 내 사본
 - `Assets\SearchBook.png`, `Assets\SearchBook.ico`: 투명 배경으로 후처리한 앱 아이콘
 - `Assets\SearchBookTray.png`, `Assets\SearchBookTray.ico`: 작은 크기에 맞춰 얼굴 중심으로 후처리한 알림 영역 아이콘
@@ -55,7 +58,7 @@
 - 기본 브랜치: `main`
 - 프레임워크 의존형 Release: `v1.0.0`
 - Release 자산: `SearchBook-win-x64.zip` (.NET 10 Desktop Runtime x64 필요)
-- 현재 로컬 소스/배포 버전: `1.3.1` (네 가지 조회 상태, 지점 포함 소장위치, 동적 버전 풋터, 결과 검토 가독성 개선 포함)
+- 현재 로컬 소스/배포 버전: `1.4.0` (WM 기준 Excel 일치·불일치 비교, 비교 필터·세부사항, 기존 결과 호환 포함)
 
 GitHub 쪽 사본까지 제거하려면 저장소 Settings의 Danger Zone에서 private 저장소를 별도로 삭제해야 합니다. 로컬 프로젝트 폴더 삭제만으로 GitHub 저장소나 Release는 삭제되지 않습니다.
 

@@ -80,7 +80,7 @@ Run("XLSX 쓰기/읽기 왕복", () =>
     var path = Path.Combine(artifacts, "roundtrip.xlsx");
     XlsxExporter.Write(path,
     [
-        new BookResult { Sequence = 1, RegistrationNumber = "EM00510342", QueryState = "성공", BookState = "대출가능", Title = "인생의 역사", Author = "신형철", Publisher = "난다", PublicationYear = "2022", Isbn = "9791191859379", CatalogLastChanged = "20260806", DataSource = "테스트" },
+        new BookResult { Sequence = 1, RegistrationNumber = "EM00510342", QueryState = "성공", BookState = "대출가능", Title = "인생의 역사", Author = "신형철", Publisher = "난다", PublicationYear = "2022", Isbn = "9791191859379", CatalogLastChanged = "20260806", DataSource = "테스트", ReferenceComparison = ReferenceComparisonClassifier.Match, ReferenceComparisonDetails = "테스트 기준 행과 일치" },
         new BookResult { Sequence = 2, RegistrationNumber = "WM00000001", QueryState = "실패", Message = "테스트" }
     ]);
     using (var archive = ZipFile.OpenRead(path))
@@ -98,6 +98,9 @@ Run("XLSX 쓰기/읽기 왕복", () =>
     }
     var values = RegistrationNumberReader.Read(path);
     Assert(values.SequenceEqual(["EM00510342", "WM00000001"]), "XLSX 왕복 등록번호 불일치");
+    var roundtripRows = ResultWorkbookReader.Read(path);
+    Assert(roundtripRows[0].ReferenceComparison == ReferenceComparisonClassifier.Match &&
+           roundtripRows[0].ReferenceComparisonDetails == "테스트 기준 행과 일치", "기준 Excel 비교 결과 왕복 실패");
 });
 
 Run("자동저장 결과 체크포인트 복원", () =>
@@ -179,6 +182,7 @@ Run("자동저장 결과 체크포인트 복원", () =>
     Assert(rows[5].QueryState == "대기", "중지됨 상태 복원 실패");
     Assert(rows[6].QueryState == "성공", "공백 포함 성공 상태 복원 실패");
     Assert(rows[7].QueryState == "실패", $"알 수 없는 상태가 네 상태 밖으로 노출됨: {rows[7].QueryState}");
+    Assert(rows[0].ReferenceComparison == ReferenceComparisonClassifier.Pending, "기존 체크포인트의 비교 기본값 복원 실패");
 });
 
 Run("조회결과 네 가지 상태 분류", () =>
@@ -374,6 +378,58 @@ Run("보조 Excel 번호대/EM·WM 상태 조회", () =>
     Assert(merged.DataSource.Contains("실시간") && merged.DataSource.Contains("로컬"), "병합 결과 출처가 불완전함");
 });
 
+Run("기준 Excel WM 일치·불일치 판정", () =>
+{
+    var docs = Path.Combine(artifacts, "wm-reference-docs");
+    Directory.CreateDirectory(docs);
+    XlsxExporter.Write(Path.Combine(docs, LocalBookStatusCatalog.WmReferenceFileName),
+    [
+        new BookResult
+        {
+            Sequence = 1,
+            RegistrationNumber = "WM00010000",
+            BookState = "대출가능",
+            Location = "중앙도서관 / 보존서고",
+            CallNumber = "841 M939p",
+            Title = "Paul Auster's:The New York Trilogy as pstmodern Detective Fiction",
+            Author = "Mqastthias Kugler",
+            Publisher = "Diplom.de",
+            PublicationYear = "1999"
+        },
+        new BookResult { Sequence = 2, RegistrationNumber = "WM00010001", BookState = "소재불명", Title = "두 번째 기준 도서" }
+    ]);
+
+    var catalog = new LocalBookStatusCatalog(docs);
+    var reference = catalog.Lookup("WM00010000");
+    var live = new LookupData(
+        true,
+        "대출가능",
+        "",
+        "중앙도서관/보존서고",
+        "841 M939p",
+        "Paul Auster's:The New York Trilogy as pstmodern Detective Fiction",
+        "",
+        "",
+        "조회 완료",
+        Author: "Mqastthias Kugler",
+        Publisher: "Diplom.de",
+        PublicationYear: "1999");
+    var matched = ReferenceComparisonClassifier.Compare(live, reference);
+    Assert(matched.Status == ReferenceComparisonClassifier.Match && matched.ComparedFieldCount >= 4, "기준 Excel 일치 판정 실패");
+
+    var mismatched = ReferenceComparisonClassifier.Compare(live with { BookState = "대출중" }, reference);
+    Assert(mismatched.Status == ReferenceComparisonClassifier.Mismatch && mismatched.Details.Contains("도서상태"), "기준 Excel 불일치 판정 실패");
+
+    var partial = ReferenceComparisonClassifier.Compare(live with { Title = "" }, reference);
+    Assert(partial.Status == ReferenceComparisonClassifier.Partial && partial.Details.Contains("서명"), "핵심값 누락 판정 실패");
+
+    var unavailable = ReferenceComparisonClassifier.Compare(LookupData.NotFound("서버 미확인"), reference);
+    Assert(unavailable.Status == ReferenceComparisonClassifier.LiveUnavailable, "실시간 미확인 판정 실패");
+
+    var missingReference = ReferenceComparisonClassifier.Compare(live, catalog.Lookup("WM00010002"));
+    Assert(missingReference.Status == ReferenceComparisonClassifier.ReferenceMissing, "기준 행 없음 판정 실패");
+});
+
 Run("처리 속도 표본과 이동 평균", () =>
 {
     var tracker = new ProcessingSpeedTracker(capacity: 3, smoothingWindow: 2);
@@ -400,6 +456,21 @@ Run("실제 docs 전체 도서정보 조회", () =>
     var missing = catalog.Lookup("EM00182477");
     Assert(missing.Found && missing.BookState == "소재불명", "소재불명 도서 조회 실패");
     Assert(missing.Record?.Title == "태엽감는 새" && missing.Record.Isbn.Contains("8970121269"), "소재불명 도서 전체정보 조회 실패");
+});
+
+Run("실제 WM 기준 Excel 카탈로그 조회", () =>
+{
+    var catalog = new LocalBookStatusCatalog(Path.Combine(root, "docs"));
+    var first = catalog.Lookup("WM00010000");
+    Assert(first.Found, "WM 기준 Excel 첫 행을 찾지 못함");
+    Assert(first.BookState == "대출가능", $"WM 기준 상태 불일치: {first.BookState}");
+    Assert(first.Record?.Location == "중앙도서관 / 보존서고", "WM 기준 소장위치 변환 실패");
+    Assert(first.Record?.CallNumber == "841 M939p", "WM 기준 청구기호 조회 실패");
+    Assert(first.Record?.Title.Contains("New York Trilogy") == true, "WM 기준 자료명 조회 실패");
+
+    var last = catalog.Lookup("WM00030000");
+    Assert(last.Found && last.Record?.Title.StartsWith("ACSM's resource manual", StringComparison.Ordinal) == true, "WM 기준 마지막 행 조회 실패");
+    Assert(!catalog.Lookup("WM00030001").Found, "WM 기준 범위 밖 등록번호가 조회됨");
 });
 
 Run(".env GitHub 토큰 로딩과 환경변수 우선순위", () =>
